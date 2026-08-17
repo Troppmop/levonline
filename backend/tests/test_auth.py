@@ -55,3 +55,72 @@ async def test_duplicate_email_registration_rejected(client: AsyncClient, auth_h
         headers=auth_headers,
     )
     assert resp.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_update_own_profile(client: AsyncClient, auth_headers: dict[str, str]):
+    resp = await client.patch(
+        "/api/v1/auth/me", json={"full_name": "New Name"}, headers=auth_headers
+    )
+    assert resp.status_code == 200
+    assert resp.json()["full_name"] == "New Name"
+    assert resp.json()["email"] == ADMIN_EMAIL  # untouched field stays as-is
+
+
+@pytest.mark.asyncio
+async def test_update_profile_email_conflict(client: AsyncClient, auth_headers: dict[str, str], make_login):
+    from app.models.enums import UserRole
+
+    await make_login("other@example.com", "password123", UserRole.STAFF)
+
+    resp = await client.patch(
+        "/api/v1/auth/me", json={"email": "other@example.com"}, headers=auth_headers
+    )
+    assert resp.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_change_password_requires_current_password(client: AsyncClient, auth_headers: dict[str, str]):
+    wrong = await client.post(
+        "/api/v1/auth/me/change-password",
+        json={"current_password": "not-the-real-password", "new_password": "brand-new-password"},
+        headers=auth_headers,
+    )
+    assert wrong.status_code == 401
+
+    right = await client.post(
+        "/api/v1/auth/me/change-password",
+        json={"current_password": ADMIN_PASSWORD, "new_password": "brand-new-password"},
+        headers=auth_headers,
+    )
+    assert right.status_code == 204
+
+    # Old password no longer works; new one does.
+    old_login = await client.post(
+        "/api/v1/auth/login", data={"username": ADMIN_EMAIL, "password": ADMIN_PASSWORD}
+    )
+    assert old_login.status_code == 401
+
+    new_login = await client.post(
+        "/api/v1/auth/login", data={"username": ADMIN_EMAIL, "password": "brand-new-password"}
+    )
+    assert new_login.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_change_password_revokes_other_sessions(client: AsyncClient, auth_headers: dict[str, str]):
+    # A second, independent login for the same user...
+    second_login = await client.post(
+        "/api/v1/auth/login", data={"username": ADMIN_EMAIL, "password": ADMIN_PASSWORD}
+    )
+    second_refresh = second_login.json()["refresh_token"]
+
+    # ...changing the password (via the first session) must kill it.
+    await client.post(
+        "/api/v1/auth/me/change-password",
+        json={"current_password": ADMIN_PASSWORD, "new_password": "another-new-password"},
+        headers=auth_headers,
+    )
+
+    resp = await client.post("/api/v1/auth/refresh", json={"refresh_token": second_refresh})
+    assert resp.status_code == 401

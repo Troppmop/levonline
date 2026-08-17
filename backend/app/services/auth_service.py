@@ -18,7 +18,7 @@ from app.repositories.refresh_token_repository import RefreshTokenRepository
 from app.repositories.registration_repository import RegistrationRequestRepository
 from app.repositories.resident_repository import ResidentRepository
 from app.repositories.user_repository import UserRepository
-from app.schemas.auth import TokenResponse, UserCreate
+from app.schemas.auth import PasswordChange, ProfileUpdate, TokenResponse, UserCreate
 
 
 class AuthService:
@@ -127,6 +127,23 @@ class AuthService:
         await self.session.flush()
 
         return new_tokens
+
+    async def update_profile(self, user: User, data: ProfileUpdate) -> User:
+        changes = data.model_dump(exclude_unset=True)
+        if "email" in changes and changes["email"] != user.email:
+            existing = await self.users.get_by_email(changes["email"])
+            if existing:
+                raise ConflictError("A user with this email already exists")
+        return await self.users.update(user, changes)
+
+    async def change_password(self, user: User, data: PasswordChange) -> None:
+        if not verify_password(data.current_password, user.hashed_password):
+            raise AuthError("Current password is incorrect")
+        await self.users.update(user, {"hashed_password": hash_password(data.new_password)})
+        # A password change is a security-sensitive event — kill every other
+        # session so a possibly-compromised refresh token stops working too,
+        # not just the one the user is currently using.
+        await self.refresh_tokens.revoke_all_for_user(user.id)
 
     async def logout(self, raw_refresh_token: str) -> None:
         token_hash = hash_refresh_token(raw_refresh_token)

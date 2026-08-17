@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Navigate, NavLink, Route, Routes } from "react-router-dom";
+import { Link, Navigate, NavLink, Route, Routes } from "react-router-dom";
 import BottomNav, { type BottomNavItem } from "./components/BottomNav";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import ResidentLayout from "./layouts/ResidentLayout";
@@ -11,6 +11,7 @@ import Login from "./pages/Login";
 import Maintenance from "./pages/Maintenance";
 import Meals from "./pages/Meals";
 import PresenceBoard from "./pages/PresenceBoard";
+import Profile from "./pages/Profile";
 import Register from "./pages/Register";
 import RegistrationRequests from "./pages/RegistrationRequests";
 import ResidentHome from "./pages/resident/ResidentHome";
@@ -85,7 +86,9 @@ function Layout({ children }: { children: ReactNode }) {
             ))}
           </nav>
           <div className="flex items-center gap-3 text-sm text-slate-600">
-            <span className="hidden sm:inline">{user?.full_name}</span>
+            <Link to="/profile" className="hidden hover:text-indigo-600 sm:inline">
+              {user?.full_name}
+            </Link>
             <button onClick={() => logout()} className="text-indigo-600 hover:underline">
               Sign out
             </button>
@@ -222,6 +225,14 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Resident mobile portal */}
         <Route
@@ -229,6 +240,14 @@ export default function App() {
           element={
             <ResidentProtectedRoute>
               <ResidentHome />
+            </ResidentProtectedRoute>
+          }
+        />
+        <Route
+          path="/r/profile"
+          element={
+            <ResidentProtectedRoute>
+              <Profile />
             </ResidentProtectedRoute>
           }
         />

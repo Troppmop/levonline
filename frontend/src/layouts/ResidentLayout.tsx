@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
 import BottomNav, { type BottomNavItem } from "../components/BottomNav";
 import { useAuth } from "../hooks/useAuth";
 
@@ -9,15 +10,20 @@ const RESIDENT_NAV: BottomNavItem[] = [
 ];
 
 export default function ResidentLayout({ children }: { children: ReactNode }) {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
 
   return (
     <div className="min-h-screen bg-slate-50 pb-16">
       <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
         <span className="font-semibold text-slate-800">Lev LaChayal</span>
-        <button onClick={() => logout()} className="text-sm text-indigo-600">
-          Sign out
-        </button>
+        <div className="flex items-center gap-3 text-sm">
+          <Link to="/r/profile" className="text-slate-600 hover:text-indigo-600">
+            {user?.full_name}
+          </Link>
+          <button onClick={() => logout()} className="text-indigo-600">
+            Sign out
+          </button>
+        </div>
       </header>
       <main className="mx-auto max-w-lg px-4 py-4">{children}</main>
       <BottomNav items={RESIDENT_NAV} />

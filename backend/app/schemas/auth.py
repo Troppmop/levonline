@@ -44,3 +44,13 @@ class UserCreate(BaseModel):
         if self.role != UserRole.RESIDENT and self.resident_id is not None:
             raise ValueError("resident_id may only be set when role is 'resident'")
         return self
+
+
+class ProfileUpdate(BaseModel):
+    full_name: str | None = None
+    email: EmailStr | None = None
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=72)

@@ -1,0 +1,96 @@
+name: lev-lachayal-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: levlachayal
+      POSTGRES_PASSWORD: levlachayal
+      POSTGRES_DB: levlachayal
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U levlachayal"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      target: runtime
+    env_file:
+      - ./backend/.env.example
+    environment:
+      DATABASE_URL: postgresql+asyncpg://levlachayal:levlachayal@postgres:5432/levlachayal
+      REDIS_URL: redis://redis:6379/0
+      CORS_ORIGINS: http://localhost:5173
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/alembic:/app/alembic
+      - uploads_data:/app/uploads
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --proxy-headers --forwarded-allow-ips='*'"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ./backend
+      target: runtime
+    env_file:
+      - ./backend/.env.example
+    environment:
+      DATABASE_URL: postgresql+asyncpg://levlachayal:levlachayal@postgres:5432/levlachayal
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./backend/app:/app/app
+      - uploads_data:/app/uploads
+    command: arq app.worker.WorkerSettings
+    # The image's HEALTHCHECK (curl localhost:8000/health) is baked in for
+    # the web process; the worker doesn't serve HTTP at all, so it would
+    # otherwise always report unhealthy despite running fine.
+    healthcheck:
+      disable: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+
+  frontend:
+    image: node:20-slim
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    environment:
+      VITE_API_PROXY_TARGET: http://backend:8000
+    ports:
+      - "5173:5173"
+    command: sh -c "npm install && npm run dev -- --host"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  uploads_data:
+  frontend_node_modules:

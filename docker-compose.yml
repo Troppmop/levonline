@@ -1,0 +1,81 @@
+# Production-like stack: builds the same unified image Railway deploys
+# (FastAPI serving both the API and the built React app on one origin).
+# For day-to-day development with hot reload, use docker-compose.dev.yml
+# instead — this one does a full frontend/backend build on every `up`.
+name: lev-lachayal
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: levlachayal
+      POSTGRES_PASSWORD: levlachayal
+      POSTGRES_DB: levlachayal
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U levlachayal"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - ./backend/.env.example
+    environment:
+      DATABASE_URL: postgresql+asyncpg://levlachayal:levlachayal@postgres:5432/levlachayal
+      REDIS_URL: redis://redis:6379/0
+      CORS_ORIGINS: http://localhost:8000
+      ENVIRONMENT: production
+      PORT: 8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ./backend
+      target: runtime
+    env_file:
+      - ./backend/.env.example
+    environment:
+      DATABASE_URL: postgresql+asyncpg://levlachayal:levlachayal@postgres:5432/levlachayal
+      REDIS_URL: redis://redis:6379/0
+      ENVIRONMENT: production
+    volumes:
+      - uploads_data:/app/uploads
+    command: arq app.worker.WorkerSettings
+    healthcheck:
+      disable: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      web:
+        condition: service_started
+
+volumes:
+  postgres_data:
+  uploads_data:

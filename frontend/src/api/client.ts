@@ -78,14 +78,41 @@ async function request<T>(path: string, options: RequestInit = {}, retry = true)
   return res.json() as Promise<T>;
 }
 
+async function download(path: string, fallbackFilename: string): Promise<void> {
+  const headers = new Headers();
+  if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+
+  const res = await fetch(`${API_BASE}${path}`, { headers });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new ApiError(res.status, body.detail || "Download failed");
+  }
+
+  const disposition = res.headers.get("Content-Disposition") || "";
+  const match = disposition.match(/filename="?([^"]+)"?/);
+  const filename = match ? match[1] : fallbackFilename;
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 export const api = {
   get: <T>(path: string) => request<T>(path, { method: "GET" }),
   post: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "POST", body: body ? JSON.stringify(body) : undefined }),
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "PATCH", body: body ? JSON.stringify(body) : undefined }),
-  delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+  delete: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: "DELETE", body: body ? JSON.stringify(body) : undefined }),
   upload: <T>(path: string, formData: FormData) => request<T>(path, { method: "POST", body: formData }),
+  download,
 };
 
 export async function login(email: string, password: string) {

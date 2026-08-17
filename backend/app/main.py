@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from pathlib import Path
 
@@ -17,11 +18,17 @@ from app.core.db import engine
 from app.core.exceptions import AppError, AuthError, ConflictError, NotFoundError, ValidationError
 from app.core.logging import configure_logging, log_request
 from app.core.rate_limit import limiter
+from app.core.sentry import init_sentry
 
 configure_logging()
 logger = logging.getLogger("app")
 
-Path(settings.UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
+init_sentry()
+
+upload_dir = Path(settings.UPLOAD_DIR)
+upload_dir.mkdir(parents=True, exist_ok=True)
+if not os.access(upload_dir, os.W_OK):
+    logger.error("UPLOAD_DIR %s exists but is not writable — uploads will fail", upload_dir.resolve())
 
 app = FastAPI(title=settings.PROJECT_NAME, version="0.1.0")
 

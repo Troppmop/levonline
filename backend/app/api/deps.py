@@ -64,6 +64,11 @@ def require_roles(*roles: UserRole):
 # reports — should be able to touch.
 StaffOrAdmin = Annotated[User, Depends(require_roles(UserRole.STAFF, UserRole.ADMIN))]
 
+# Bulk data import/export and account creation: admin-only, not staff — this
+# is whole-database-shaped access (every table, including other staff's
+# accounts), a materially bigger blast radius than day-to-day building ops.
+AdminOnly = Annotated[User, Depends(require_roles(UserRole.ADMIN))]
+
 
 async def get_non_resident_user(user: CurrentUser) -> User:
     """Gate for endpoints that browse across residents (roster lists, the

@@ -2,6 +2,7 @@ import uuid
 
 from sqlalchemy import select
 
+from app.models.enums import UserRole
 from app.models.user import User
 from app.repositories.base import BaseRepository
 
@@ -18,3 +19,8 @@ class UserRepository(BaseRepository[User]):
         stmt = select(User).where(User.resident_id == resident_id)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def list_active_by_roles(self, *roles: UserRole):
+        stmt = select(User).where(User.role.in_(roles), User.is_active.is_(True))
+        result = await self.session.execute(stmt)
+        return result.scalars().all()

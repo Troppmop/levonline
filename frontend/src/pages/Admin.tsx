@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { ApiError, api } from "../api/client";
+import DataManagement from "./admin/DataManagement";
 import Rooms from "./Rooms";
 import type { Resident, User, UserRole } from "../types";
 
@@ -12,7 +13,7 @@ const ROLES: { value: UserRole; label: string }[] = [
 ];
 
 export default function Admin() {
-  const [tab, setTab] = useState<"staff" | "rooms">("staff");
+  const [tab, setTab] = useState<"staff" | "rooms" | "data">("staff");
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
@@ -51,7 +52,7 @@ export default function Admin() {
   }
 
   return (
-    <div className={tab === "rooms" ? "max-w-3xl" : "max-w-lg"}>
+    <div className={tab === "staff" ? "max-w-lg" : "max-w-4xl"}>
       <h1 className="mb-4 text-2xl font-semibold text-slate-800">Admin Settings</h1>
 
       <div className="mb-4 flex gap-2 border-b border-slate-200">
@@ -71,9 +72,18 @@ export default function Admin() {
         >
           Rooms
         </button>
+        <button
+          onClick={() => setTab("data")}
+          className={`px-3 py-2 text-sm font-medium ${
+            tab === "data" ? "border-b-2 border-indigo-600 text-indigo-600" : "text-slate-500"
+          }`}
+        >
+          Data Management (Import / Export)
+        </button>
       </div>
 
       {tab === "rooms" && <Rooms />}
+      {tab === "data" && <DataManagement />}
 
       {tab === "staff" && (
         <>

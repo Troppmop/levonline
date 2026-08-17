@@ -2,9 +2,13 @@ import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { ApiError, api, logout as apiLogout } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
+import { useDirection } from "../hooks/useDirection";
+import { usePushNotifications } from "../hooks/usePushNotifications";
 
 export default function Profile() {
   const { user } = useAuth();
+  const { direction, setDirection } = useDirection();
+  const push = usePushNotifications();
   const [fullName, setFullName] = useState(user?.full_name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -111,6 +115,56 @@ export default function Profile() {
           {savingProfile ? "Saving..." : "Save changes"}
         </button>
       </form>
+
+      <div className="space-y-3 rounded-lg bg-white p-4 shadow-sm">
+        <h2 className="font-medium text-slate-700">App Settings</h2>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-slate-700">Layout direction</p>
+            <p className="text-xs text-slate-500">Switch between left-to-right and right-to-left layout.</p>
+          </div>
+          <div className="flex overflow-hidden rounded border border-slate-300 text-xs">
+            <button
+              onClick={() => setDirection("ltr")}
+              className={`px-3 py-1.5 ${direction === "ltr" ? "bg-indigo-600 text-white" : "bg-white text-slate-600"}`}
+            >
+              LTR
+            </button>
+            <button
+              onClick={() => setDirection("rtl")}
+              className={`px-3 py-1.5 ${direction === "rtl" ? "bg-indigo-600 text-white" : "bg-white text-slate-600"}`}
+            >
+              RTL
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+          <div>
+            <p className="text-sm font-medium text-slate-700">Push notifications</p>
+            <p className="text-xs text-slate-500">
+              {push.supported
+                ? "Get notified about low stock, meal reminders, and more on this device."
+                : "Not supported on this browser/device."}
+            </p>
+            {push.error && <p className="mt-1 text-xs text-red-600">{push.error}</p>}
+          </div>
+          {push.supported && (
+            <button
+              onClick={() => (push.state === "subscribed" ? push.disable() : push.enable())}
+              disabled={push.loading}
+              className={`rounded px-3 py-1.5 text-xs font-medium disabled:opacity-50 ${
+                push.state === "subscribed"
+                  ? "bg-slate-200 text-slate-700 hover:bg-slate-300"
+                  : "bg-indigo-600 text-white hover:bg-indigo-700"
+              }`}
+            >
+              {push.loading ? "..." : push.state === "subscribed" ? "Disable" : "Enable"}
+            </button>
+          )}
+        </div>
+      </div>
 
       <form onSubmit={changePassword} className="space-y-3 rounded-lg bg-white p-4 shadow-sm">
         <h2 className="font-medium text-slate-700">Change password</h2>

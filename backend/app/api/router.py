@@ -1,11 +1,13 @@
 from fastapi import APIRouter
 
 from app.api.routes import (
+    admin_data,
     announcements,
     auth,
     inventory,
     maintenance,
     meals,
+    push,
     registration,
     residents,
     rooms,
@@ -21,6 +23,8 @@ api_router.include_router(maintenance.router)
 api_router.include_router(meals.router)
 api_router.include_router(announcements.router)
 api_router.include_router(registration.router)
+api_router.include_router(push.router)
+api_router.include_router(admin_data.router)
 
 if settings.ENVIRONMENT == "test":
     # Only mounted for E2E test runs; see app.api.routes.testing for why.

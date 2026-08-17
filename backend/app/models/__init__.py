@@ -5,6 +5,7 @@ from app.models.announcement import Announcement
 from app.models.inventory import InventoryItem, InventoryTransaction
 from app.models.maintenance import DamageReport, DamageReportStatusHistory
 from app.models.meal import MealHostingRecord, MealInvitation
+from app.models.push_subscription import PushSubscription
 from app.models.refresh_token import RefreshToken
 from app.models.registration import ResidentRegistrationRequest
 from app.models.resident import Resident, ResidentActivityLog
@@ -19,6 +20,7 @@ __all__ = [
     "DamageReportStatusHistory",
     "MealHostingRecord",
     "MealInvitation",
+    "PushSubscription",
     "RefreshToken",
     "ResidentRegistrationRequest",
     "Resident",

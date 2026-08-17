@@ -6,6 +6,12 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      // injectManifest (not the default generateSW): src/sw.ts is
+      // hand-authored so it can listen for `push` / `notificationclick`
+      // events, which generateSW's auto-built worker has no hook for.
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
       registerType: "autoUpdate",
       includeAssets: ["icons/apple-touch-icon.png"],
       manifest: {
@@ -23,20 +29,14 @@ export default defineConfig({
           { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
       },
-      workbox: {
-        // Never cache API responses or uploaded files offline-first — this
-        // is operational data (presence, inventory, tickets) that must
-        // always be fresh; the PWA shell is what gets cached for speed.
-        navigateFallbackDenylist: [/^\/api\//, /^\/uploads\//],
-        runtimeCaching: [
-          {
-            urlPattern: /^\/api\//,
-            handler: "NetworkOnly",
-          },
-        ],
+      injectManifest: {
+        // The default (2MB) is too tight once the built JS bundle is
+        // included in the precache manifest.
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },
       devOptions: {
         enabled: false,
+        type: "module",
       },
     }),
   ],

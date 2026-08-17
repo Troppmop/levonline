@@ -30,11 +30,24 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:5173"
 
     # File uploads (damage report photos)
-    UPLOAD_DIR: str = "uploads"
+    UPLOAD_DIR: str = "./uploads"
     MAX_UPLOAD_SIZE_MB: int = 10
 
     # Inventory
     LOW_STOCK_CHECK_CRON_MINUTE: int = 0  # top of every hour
+
+    # Web push (VAPID). Generate a keypair with `vapid --gen` (installed
+    # transitively via pywebpush's py_vapid dependency) or
+    # `npx web-push generate-vapid-keys`. Left blank, push subscribe/
+    # unsubscribe still works (so the frontend can register ahead of time)
+    # but actually sending a notification is a no-op — see push_service.py.
+    VAPID_PUBLIC_KEY: str = ""
+    VAPID_PRIVATE_KEY: str = ""
+    VAPID_CLAIMS_SUB: str = "mailto:admin@levlachayal.org"
+
+    # Error tracking. Blank = Sentry never initializes (see core/sentry.py).
+    SENTRY_DSN: str = ""
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.1
 
     @property
     def cors_origins(self) -> list[str]:

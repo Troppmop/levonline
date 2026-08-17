@@ -3,13 +3,15 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError, ValidationError
-from app.models.enums import MaintenanceStatus, ReportCategory
+from app.models.enums import MaintenanceStatus, ReportCategory, UserRole
 from app.models.maintenance import DamageReport, DamageReportStatusHistory
 from app.repositories.maintenance_repository import (
     DamageReportRepository,
     DamageReportStatusHistoryRepository,
 )
+from app.repositories.user_repository import UserRepository
 from app.schemas.maintenance import DamageReportCreate, DamageReportUpdate
+from app.services.push_service import send_notification_to_user
 
 # Valid forward transitions for the damage report lifecycle. Rejecting
 # invalid jumps (e.g. New -> Closed) keeps the status history meaningful.
@@ -26,6 +28,7 @@ class MaintenanceService:
         self.session = session
         self.reports = DamageReportRepository(session)
         self.history = DamageReportStatusHistoryRepository(session)
+        self.users = UserRepository(session)
 
     async def get(self, report_id: uuid.UUID) -> DamageReport:
         report = await self.reports.get_with_history(report_id)
@@ -62,6 +65,19 @@ class MaintenanceService:
                 changed_by_id=reported_by_id,
             )
         )
+
+        recipients = await self.users.list_active_by_roles(UserRole.STAFF, UserRole.ADMIN)
+        for user in recipients:
+            if user.id == reported_by_id:
+                continue
+            await send_notification_to_user(
+                self.session,
+                user.id,
+                "New Maintenance/Cleaning Report",
+                report.title,
+                url="/maintenance",
+            )
+
         return await self.get(report.id)
 
     async def update(self, report_id: uuid.UUID, data: DamageReportUpdate) -> DamageReport:
@@ -104,4 +120,16 @@ class MaintenanceService:
                 note=note,
             )
         )
+
+        if report.resident_id:
+            resident_user = await self.users.get_by_resident_id(report.resident_id)
+            if resident_user:
+                await send_notification_to_user(
+                    self.session,
+                    resident_user.id,
+                    "Your Report Was Updated",
+                    f"'{report.title}' is now {new_status.value.replace('_', ' ')}",
+                    url="/r/report",
+                )
+
         return await self.get(report_id)

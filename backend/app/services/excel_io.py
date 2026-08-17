@@ -49,6 +49,10 @@ class TableSpec:
     allow_create: bool = True
 
 
+# Order matters for import_all_tables: a row referencing another table by
+# FK (e.g. a resident's room_id) can only resolve if that table was already
+# applied earlier in the same batch — so this is roughly FK-dependency
+# order, not just alphabetical/display order.
 TABLE_REGISTRY: dict[str, TableSpec] = {
     "users": TableSpec(
         model=User,
@@ -58,8 +62,8 @@ TABLE_REGISTRY: dict[str, TableSpec] = {
         unique_fields=("email",),
         allow_create=False,
     ),
-    "residents": TableSpec(model=Resident, label="Residents"),
     "rooms": TableSpec(model=Room, label="Rooms", unique_fields=("floor", "room_number")),
+    "residents": TableSpec(model=Resident, label="Residents"),
     "inventory_items": TableSpec(
         model=InventoryItem, label="Inventory Items", unique_fields=("name", "location")
     ),
@@ -311,19 +315,18 @@ def _read_upload_dataframe(filename: str, content: bytes) -> pd.DataFrame:
     return pd.read_excel(buffer, engine="openpyxl")
 
 
-async def import_table(
-    session,
-    table_name: str,
-    upload: UploadFile,
-    actor_id: uuid.UUID | None = None,
-    dry_run: bool = False,
-) -> ImportResult:
-    spec = get_table_spec(table_name)
-    content = await upload.read()
-    df = _read_upload_dataframe(upload.filename or "", content)
-
+async def _validate_dataframe(
+    session, spec: TableSpec, df: pd.DataFrame
+) -> tuple[list[RowError], list[tuple[SQLModel | None, dict]]]:
+    """Validates + resolves every row's target (insert vs. update) without
+    touching the session, so a caller can check for zero errors across one
+    or many sheets before writing anything."""
     writable = set(_writable_fields(spec))
-    known_columns = writable | {"id"}
+    # A round-tripped export legitimately includes id/created_at/updated_at
+    # even though they're not writable — those get ignored below, not
+    # flagged as unknown. Only a column that isn't part of the table at
+    # all (typo, wrong sheet, stray column) is an error.
+    known_columns = writable | set(spec.readonly_fields)
     unknown_columns = [c for c in df.columns if c not in known_columns]
 
     errors: list[RowError] = []
@@ -336,9 +339,6 @@ async def import_table(
             }
         )
 
-    # Phase 1: validate + resolve every row's target (insert vs. update)
-    # without touching the session, so a single bad row aborts the whole
-    # file before anything is written.
     parsed_rows: list[tuple[SQLModel | None, dict]] = []
     for idx, raw_row in df.iterrows():
         row_num = int(idx) + 2  # +1 for 0-index, +1 for the header row
@@ -397,6 +397,32 @@ async def import_table(
 
         parsed_rows.append((existing, parsed))
 
+    return errors, parsed_rows
+
+
+def _apply_parsed_rows(session, spec: TableSpec, parsed_rows: list[tuple[SQLModel | None, dict]]) -> None:
+    for existing, parsed in parsed_rows:
+        if existing is not None:
+            for k, v in parsed.items():
+                setattr(existing, k, v)
+            session.add(existing)
+        else:
+            obj = spec.model(**parsed)
+            session.add(obj)
+
+
+async def import_table(
+    session,
+    table_name: str,
+    upload: UploadFile,
+    actor_id: uuid.UUID | None = None,
+    dry_run: bool = False,
+) -> ImportResult:
+    spec = get_table_spec(table_name)
+    content = await upload.read()
+    df = _read_upload_dataframe(upload.filename or "", content)
+
+    errors, parsed_rows = await _validate_dataframe(session, spec, df)
     if errors:
         return ImportResult(inserted_count=0, updated_count=0, errors=errors)
 
@@ -408,18 +434,49 @@ async def import_table(
         # touch the session at all.
         return ImportResult(inserted_count=inserted, updated_count=updated, errors=[])
 
-    # Phase 2: everything validated cleanly — apply it.
-    for existing, parsed in parsed_rows:
-        if existing is not None:
-            for k, v in parsed.items():
-                setattr(existing, k, v)
-            session.add(existing)
-        else:
-            obj = spec.model(**parsed)
-            session.add(obj)
-
+    _apply_parsed_rows(session, spec, parsed_rows)
     await session.flush()
     return ImportResult(inserted_count=inserted, updated_count=updated, errors=[])
+
+
+async def import_all_tables(session, upload: UploadFile, dry_run: bool = False) -> dict[str, ImportResult]:
+    """Imports a multi-sheet workbook (the same shape export_all_xlsx
+    produces) — one sheet per table, matched by sheet name to
+    TABLE_REGISTRY. Sheets for unknown tables are ignored; a table with no
+    matching sheet is simply left untouched.
+
+    Atomic across the *entire* workbook, not just per-sheet: if any row on
+    any sheet fails validation, nothing on any sheet is written.
+    """
+    content = await upload.read()
+    if (upload.filename or "").lower().endswith(".csv"):
+        raise ValueError("A multi-table import needs a multi-sheet .xlsx workbook, not a .csv file")
+    sheets = pd.read_excel(io.BytesIO(content), sheet_name=None, engine="openpyxl")
+
+    validated: dict[str, tuple[list[RowError], list[tuple[SQLModel | None, dict]]]] = {}
+    for table_name, spec in TABLE_REGISTRY.items():
+        if table_name not in sheets:
+            continue
+        validated[table_name] = await _validate_dataframe(session, spec, sheets[table_name])
+
+    any_errors = any(errors for errors, _ in validated.values())
+
+    results: dict[str, ImportResult] = {}
+    for table_name, (errors, parsed_rows) in validated.items():
+        if any_errors:
+            results[table_name] = ImportResult(inserted_count=0, updated_count=0, errors=errors)
+            continue
+
+        inserted = sum(1 for existing, _ in parsed_rows if existing is None)
+        updated = len(parsed_rows) - inserted
+        if not dry_run:
+            _apply_parsed_rows(session, TABLE_REGISTRY[table_name], parsed_rows)
+        results[table_name] = ImportResult(inserted_count=inserted, updated_count=updated, errors=[])
+
+    if not any_errors and not dry_run:
+        await session.flush()
+
+    return results
 
 
 class _RowIdNotFound(Exception):

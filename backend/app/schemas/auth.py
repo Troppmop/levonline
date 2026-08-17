@@ -22,6 +22,7 @@ class UserRead(BaseModel):
     role: UserRole
     is_active: bool
     resident_id: uuid.UUID | None = None
+    avatar_url: str | None = None
 
     model_config = {"from_attributes": True}
 

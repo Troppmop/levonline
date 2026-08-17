@@ -81,3 +81,26 @@ async def import_table(
         "errors": result.errors,
         "dry_run": dry_run,
     }
+
+
+@router.post("/import-all")
+async def import_all(
+    session: SessionDep, _: AdminOnly, file: UploadFile = File(...), dry_run: bool = False
+) -> dict:
+    """Takes the same multi-sheet workbook export-all produces, edited and
+    sent back — one sheet per table, atomic across the whole file."""
+    try:
+        results = await excel_io.import_all_tables(session, file, dry_run=dry_run)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"Could not read file: {exc}") from exc
+    return {
+        "dry_run": dry_run,
+        "tables": {
+            table_name: {
+                "inserted_count": result.inserted_count,
+                "updated_count": result.updated_count,
+                "errors": result.errors,
+            }
+            for table_name, result in results.items()
+        },
+    }

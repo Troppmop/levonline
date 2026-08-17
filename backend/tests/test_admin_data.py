@@ -16,6 +16,19 @@ def _xlsx_bytes(headers: list[str], rows: list[list]) -> bytes:
     return buffer.getvalue()
 
 
+def _multi_sheet_xlsx_bytes(sheets: dict[str, tuple[list[str], list[list]]]) -> bytes:
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)
+    for sheet_name, (headers, rows) in sheets.items():
+        ws = wb.create_sheet(sheet_name)
+        ws.append(headers)
+        for row in rows:
+            ws.append(row)
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    return buffer.getvalue()
+
+
 @pytest.mark.asyncio
 async def test_list_data_tables_is_admin_only(client: AsyncClient, auth_headers: dict[str, str]):
     resp = await client.get("/api/v1/admin/data-tables", headers=auth_headers)
@@ -193,3 +206,74 @@ async def test_import_template_download(client: AsyncClient, auth_headers: dict[
     assert "id" not in header_row
     assert "created_at" not in header_row
     assert "first_name" in header_row
+
+
+@pytest.mark.asyncio
+async def test_export_all_then_import_all_round_trip_updates(
+    client: AsyncClient, auth_headers: dict[str, str]
+):
+    room_resp = await client.post(
+        "/api/v1/rooms", json={"floor": 2, "room_number": "210", "capacity": 2}, headers=auth_headers
+    )
+    room_id = room_resp.json()["id"]
+
+    export_resp = await client.get("/api/v1/admin/export-all", headers=auth_headers)
+    wb = openpyxl.load_workbook(io.BytesIO(export_resp.content))
+    rooms_ws = wb["rooms"]
+    headers = [c.value for c in next(rooms_ws.iter_rows(min_row=1, max_row=1))]
+    capacity_col = headers.index("capacity")
+    for row in rooms_ws.iter_rows(min_row=2):
+        if row[headers.index("id")].value == room_id:
+            row[capacity_col].value = 9
+    buffer = io.BytesIO()
+    wb.save(buffer)
+
+    import_resp = await client.post(
+        "/api/v1/admin/import-all",
+        files={"file": ("full-export.xlsx", buffer.getvalue(), "application/octet-stream")},
+        headers=auth_headers,
+    )
+    assert import_resp.status_code == 200
+    body = import_resp.json()
+    assert body["tables"]["rooms"]["errors"] == []
+    assert body["tables"]["rooms"]["updated_count"] >= 1
+
+    updated_room = await client.get("/api/v1/rooms", headers=auth_headers)
+    room = next(r for r in updated_room.json() if r["id"] == room_id)
+    assert room["capacity"] == 9
+
+
+@pytest.mark.asyncio
+async def test_import_all_is_atomic_across_sheets(client: AsyncClient, auth_headers: dict[str, str]):
+    content = _multi_sheet_xlsx_bytes(
+        {
+            "rooms": (["floor", "room_number", "capacity"], [[3, "301", 2]]),
+            "residents": (
+                ["first_name", "last_name", "security_deposit_amount"],
+                [["Bad", "Row", "not-a-number"]],
+            ),
+        }
+    )
+    resp = await client.post(
+        "/api/v1/admin/import-all",
+        files={"file": ("bad.xlsx", content, "application/octet-stream")},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["tables"]["rooms"]["errors"] == []
+    assert body["tables"]["rooms"]["inserted_count"] == 0  # aborted despite this sheet being valid
+    assert len(body["tables"]["residents"]["errors"]) == 1
+
+    rooms_resp = await client.get("/api/v1/rooms", headers=auth_headers)
+    assert not any(r["room_number"] == "301" for r in rooms_resp.json())
+
+
+@pytest.mark.asyncio
+async def test_import_all_rejects_csv(client: AsyncClient, auth_headers: dict[str, str]):
+    resp = await client.post(
+        "/api/v1/admin/import-all",
+        files={"file": ("data.csv", b"floor,room_number,capacity\n1,101,2", "text/csv")},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 400

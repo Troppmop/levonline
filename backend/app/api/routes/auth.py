@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.api.deps import CurrentUser, SessionDep, require_roles
 from app.core.config import settings
 from app.core.rate_limit import limiter
+from app.core.storage import save_avatar_photo
 from app.models.enums import UserRole
 from app.schemas.auth import (
     PasswordChange,
@@ -14,6 +15,7 @@ from app.schemas.auth import (
     UserRead,
 )
 from app.services.auth_service import AuthService
+from app.services.user_service import UserService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -48,6 +50,12 @@ async def me(current_user: CurrentUser):
 async def update_me(session: SessionDep, current_user: CurrentUser, payload: ProfileUpdate):
     service = AuthService(session)
     return await service.update_profile(current_user, payload)
+
+
+@router.post("/me/avatar", response_model=UserRead)
+async def upload_my_avatar(session: SessionDep, current_user: CurrentUser, file: UploadFile = File(...)):
+    url = await save_avatar_photo(current_user.id, file)
+    return await UserService(session).set_avatar(current_user.id, url)
 
 
 @router.post("/me/change-password", status_code=204)

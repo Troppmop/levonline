@@ -1,14 +1,19 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { ApiError, api, logout as apiLogout } from "../api/client";
+import Avatar from "../components/Avatar";
 import { useAuth } from "../hooks/useAuth";
 import { useDirection } from "../hooks/useDirection";
 import { usePushNotifications } from "../hooks/usePushNotifications";
+import type { User } from "../types";
 
 export default function Profile() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { direction, setDirection } = useDirection();
   const push = usePushNotifications();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
   const [fullName, setFullName] = useState(user?.full_name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -20,6 +25,21 @@ export default function Profile() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [changingPassword, setChangingPassword] = useState(false);
+
+  async function uploadAvatar(file: File) {
+    setAvatarError(null);
+    setUploadingAvatar(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      await api.upload<User>("/auth/me/avatar", formData);
+      await refreshUser();
+    } catch (err) {
+      setAvatarError(err instanceof ApiError ? err.message : "Could not upload photo");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
 
   async function saveProfile(e: FormEvent) {
     e.preventDefault();
@@ -65,6 +85,31 @@ export default function Profile() {
   return (
     <div className="max-w-lg space-y-6">
       <h1 className="text-2xl font-semibold text-slate-800">My Profile</h1>
+
+      <div className="flex items-center gap-4 rounded-lg bg-white p-4 shadow-sm">
+        <Avatar name={user?.full_name ?? ""} url={user?.avatar_url} size="lg" />
+        <div>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadingAvatar}
+            className="rounded bg-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-300 disabled:opacity-50"
+          >
+            {uploadingAvatar ? "Uploading..." : user?.avatar_url ? "Change Photo" : "Upload Photo"}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) uploadAvatar(file);
+              e.target.value = "";
+            }}
+          />
+          {avatarError && <p className="mt-1 text-xs text-red-600">{avatarError}</p>}
+        </div>
+      </div>
 
       {user?.role === "admin" && (
         <Link

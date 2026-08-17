@@ -1,4 +1,5 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, type FormEvent } from "react";
 import { api } from "../api/client";
 import type { InventoryCategory, InventoryItem, InventoryLocation } from "../types";
 
@@ -19,8 +20,13 @@ const CATEGORIES: { value: InventoryCategory; label: string }[] = [
 ];
 
 export default function Inventory() {
-  const [items, setItems] = useState<InventoryItem[] | null>(null);
+  const queryClient = useQueryClient();
   const [locationFilter, setLocationFilter] = useState<InventoryLocation | "">("");
+
+  const { data: items } = useQuery({
+    queryKey: ["inventory", locationFilter],
+    queryFn: () => api.get<InventoryItem[]>(`/inventory${locationFilter ? `?location=${locationFilter}` : ""}`),
+  });
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState<InventoryCategory>("non_perishable");
@@ -29,50 +35,52 @@ export default function Inventory() {
   const [quantity, setQuantity] = useState("0");
   const [threshold, setThreshold] = useState("0");
 
-  async function load() {
-    const query = locationFilter ? `?location=${locationFilter}` : "";
-    const data = await api.get<InventoryItem[]>(`/inventory${query}`);
-    setItems(data);
+  function invalidate() {
+    queryClient.invalidateQueries({ queryKey: ["inventory"] });
   }
 
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locationFilter]);
+  const adjust = useMutation({
+    mutationFn: ({ itemId, delta }: { itemId: string; delta: number }) =>
+      api.post(`/inventory/${itemId}/adjust`, {
+        change_quantity: delta,
+        reason: delta > 0 ? "restock" : "consumption",
+      }),
+    onSuccess: invalidate,
+  });
 
-  async function adjust(itemId: string, delta: number) {
-    await api.post(`/inventory/${itemId}/adjust`, {
-      change_quantity: delta,
-      reason: delta > 0 ? "restock" : "consumption",
-    });
-    load();
-  }
+  const createItem = useMutation({
+    mutationFn: () =>
+      api.post("/inventory", {
+        name,
+        category,
+        location,
+        unit,
+        quantity: Number(quantity) || 0,
+        low_stock_threshold: Number(threshold) || 0,
+      }),
+    onSuccess: () => {
+      setName("");
+      setQuantity("0");
+      setThreshold("0");
+      invalidate();
+    },
+  });
 
-  async function createItem(e: FormEvent) {
+  const updateThreshold = useMutation({
+    mutationFn: ({ item, newThreshold }: { item: InventoryItem; newThreshold: string }) =>
+      api.patch(`/inventory/${item.id}`, { low_stock_threshold: Number(newThreshold) || 0 }),
+    onSuccess: invalidate,
+  });
+
+  const deleteItem = useMutation({
+    mutationFn: (itemId: string) => api.delete(`/inventory/${itemId}`),
+    onSuccess: invalidate,
+  });
+
+  function handleCreateSubmit(e: FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
-    await api.post("/inventory", {
-      name,
-      category,
-      location,
-      unit,
-      quantity: Number(quantity) || 0,
-      low_stock_threshold: Number(threshold) || 0,
-    });
-    setName("");
-    setQuantity("0");
-    setThreshold("0");
-    load();
-  }
-
-  async function updateThreshold(item: InventoryItem, newThreshold: string) {
-    await api.patch(`/inventory/${item.id}`, { low_stock_threshold: Number(newThreshold) || 0 });
-    load();
-  }
-
-  async function deleteItem(itemId: string) {
-    await api.delete(`/inventory/${itemId}`);
-    load();
+    createItem.mutate();
   }
 
   return (
@@ -94,7 +102,7 @@ export default function Inventory() {
       </div>
 
       <form
-        onSubmit={createItem}
+        onSubmit={handleCreateSubmit}
         className="mb-6 flex flex-wrap items-end gap-2 rounded-lg bg-white p-4 shadow-sm"
       >
         <label className="text-xs text-slate-600">
@@ -193,25 +201,25 @@ export default function Inventory() {
                 <input
                   type="number"
                   defaultValue={item.low_stock_threshold}
-                  onBlur={(e) => updateThreshold(item, e.target.value)}
+                  onBlur={(e) => updateThreshold.mutate({ item, newThreshold: e.target.value })}
                   className="w-16 rounded border border-slate-300 px-1.5 py-1 text-xs"
                 />
               </td>
               <td className="px-4 py-2 space-x-2 whitespace-nowrap">
                 <button
-                  onClick={() => adjust(item.id, 1)}
+                  onClick={() => adjust.mutate({ itemId: item.id, delta: 1 })}
                   className="rounded bg-slate-200 px-2 py-1 text-xs hover:bg-slate-300"
                 >
                   +1
                 </button>
                 <button
-                  onClick={() => adjust(item.id, -1)}
+                  onClick={() => adjust.mutate({ itemId: item.id, delta: -1 })}
                   className="rounded bg-slate-200 px-2 py-1 text-xs hover:bg-slate-300"
                 >
                   -1
                 </button>
                 <button
-                  onClick={() => deleteItem(item.id)}
+                  onClick={() => deleteItem.mutate(item.id)}
                   className="rounded bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200"
                 >
                   Delete

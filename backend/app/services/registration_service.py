@@ -13,6 +13,7 @@ from app.repositories.registration_repository import RegistrationRequestReposito
 from app.repositories.resident_repository import ResidentActivityLogRepository, ResidentRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.registration import RegistrationRequestCreate
+from app.services.push_service import send_notification_to_user
 
 
 class RegistrationService:
@@ -36,7 +37,19 @@ class RegistrationService:
             phone=data.phone,
             hashed_password=hash_password(data.password),
         )
-        return await self.requests.create(request)
+        request = await self.requests.create(request)
+
+        recipients = await self.users.list_active_by_roles(UserRole.STAFF, UserRole.ADMIN)
+        for user in recipients:
+            await send_notification_to_user(
+                self.session,
+                user.id,
+                "New Registration Request",
+                f"{request.first_name} {request.last_name} applied to join",
+                url="/registrations",
+            )
+
+        return request
 
     async def get(self, request_id: uuid.UUID) -> ResidentRegistrationRequest:
         request = await self.requests.get(request_id)

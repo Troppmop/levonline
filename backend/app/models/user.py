@@ -15,6 +15,7 @@ class User(UUIDPrimaryKey, TimestampMixin, table=True):
     full_name: str
     role: UserRole = Field(default=UserRole.STAFF)
     is_active: bool = Field(default=True)
+    avatar_url: str | None = None
 
     # Only set (and only meaningful) for role=RESIDENT: links the login
     # account to the resident profile it's allowed to see/edit. Nullable

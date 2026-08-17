@@ -22,6 +22,39 @@ async def test_create_and_fetch_resident(client: AsyncClient, auth_headers: dict
 
 
 @pytest.mark.asyncio
+async def test_update_contract_and_country_fields(client: AsyncClient, auth_headers: dict[str, str]):
+    create_resp = await client.post(
+        "/api/v1/residents", json={"first_name": "Eli", "last_name": "Barak"}, headers=auth_headers
+    )
+    resident_id = create_resp.json()["id"]
+    body = create_resp.json()
+    assert body["contract_signed"] is False
+    assert body["has_horaat_keva"] is False
+    assert body["in_country"] is True
+
+    update_resp = await client.patch(
+        f"/api/v1/residents/{resident_id}",
+        json={
+            "contract_signed": True,
+            "has_horaat_keva": True,
+            "in_country": False,
+            "notes": "Allergic to peanuts",
+            "move_in_date": "2026-01-01",
+            "move_out_date": "2026-12-31",
+        },
+        headers=auth_headers,
+    )
+    assert update_resp.status_code == 200
+    updated = update_resp.json()
+    assert updated["contract_signed"] is True
+    assert updated["has_horaat_keva"] is True
+    assert updated["in_country"] is False
+    assert updated["notes"] == "Allergic to peanuts"
+    assert updated["move_in_date"] == "2026-01-01"
+    assert updated["move_out_date"] == "2026-12-31"
+
+
+@pytest.mark.asyncio
 async def test_status_toggle_logs_activity(client: AsyncClient, auth_headers: dict[str, str]):
     create_resp = await client.post(
         "/api/v1/residents", json={"first_name": "Dovid", "last_name": "Levi"}, headers=auth_headers

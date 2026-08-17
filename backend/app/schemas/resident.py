@@ -25,6 +25,9 @@ class ResidentBase(BaseModel):
     rent_amount_due: Decimal = Decimal("0")
     rent_amount_paid: Decimal = Decimal("0")
     contract_pdf_url: str | None = None
+    contract_signed: bool = False
+    has_horaat_keva: bool = False
+    in_country: bool = True
     notes: str | None = None
 
 
@@ -50,6 +53,9 @@ class ResidentUpdate(BaseModel):
     rent_amount_due: Decimal | None = None
     rent_amount_paid: Decimal | None = None
     contract_pdf_url: str | None = None
+    contract_signed: bool | None = None
+    has_horaat_keva: bool | None = None
+    in_country: bool | None = None
     notes: str | None = None
     is_active: bool | None = None
 

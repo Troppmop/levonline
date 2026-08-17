@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState, type FormEvent } from "react";
 import { api } from "../../api/client";
+import { REPORT_LOCATIONS } from "../Maintenance";
 import type { DamageReport, ReportCategory, Room } from "../../types";
 
 const STATUS_LABEL: Record<DamageReport["status"], string> = {
@@ -16,6 +17,7 @@ export default function ResidentReport() {
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<ReportCategory>("damage");
   const [locationDetail, setLocationDetail] = useState("");
+  const [customLocation, setCustomLocation] = useState("");
   const [roomId, setRoomId] = useState("");
 
   const { data: rooms } = useQuery({
@@ -34,13 +36,14 @@ export default function ResidentReport() {
         title,
         description,
         category,
-        location_detail: locationDetail,
+        location_detail: locationDetail === "Other" ? customLocation : locationDetail,
         room_id: roomId || null,
       }),
     onSuccess: () => {
       setTitle("");
       setDescription("");
       setLocationDetail("");
+      setCustomLocation("");
       queryClient.invalidateQueries({ queryKey: ["maintenance", "reports", "mine"] });
     },
   });
@@ -56,7 +59,8 @@ export default function ResidentReport() {
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!title.trim() || !locationDetail.trim()) return;
+    const effectiveLocation = locationDetail === "Other" ? customLocation : locationDetail;
+    if (!title.trim() || !effectiveLocation.trim()) return;
     createReport.mutate();
   }
 
@@ -92,13 +96,28 @@ export default function ResidentReport() {
           placeholder="What's the issue?"
           className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
         />
-        <input
+        <select
           required
           value={locationDetail}
           onChange={(e) => setLocationDetail(e.target.value)}
-          placeholder="Location (e.g. Floor 1 Kitchen, Room 204)"
           className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
-        />
+        >
+          <option value="">Select location...</option>
+          {REPORT_LOCATIONS.map((loc) => (
+            <option key={loc} value={loc}>
+              {loc}
+            </option>
+          ))}
+        </select>
+        {locationDetail === "Other" && (
+          <input
+            required
+            value={customLocation}
+            onChange={(e) => setCustomLocation(e.target.value)}
+            placeholder="Describe the location"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+          />
+        )}
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}

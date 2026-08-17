@@ -55,6 +55,15 @@ class Resident(UUIDPrimaryKey, TimestampMixin, table=True):
     rent_amount_due: Decimal = Field(default=Decimal("0"), max_digits=10, decimal_places=2)
     rent_amount_paid: Decimal = Field(default=Decimal("0"), max_digits=10, decimal_places=2)
     contract_pdf_url: str | None = None
+    contract_signed: bool = Field(default=False)
+    # Horaat Keva: a standing bank order authorizing recurring rent
+    # payments — common practice for this kind of arrangement in Israel.
+    has_horaat_keva: bool = Field(default=False)
+
+    # Whether the resident is currently in the country at all — distinct
+    # from `status` (home/away), which tracks day-to-day building
+    # presence and changes far more often.
+    in_country: bool = Field(default=True)
 
     notes: str | None = None
     is_active: bool = Field(default=True, index=True)

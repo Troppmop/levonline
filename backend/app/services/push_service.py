@@ -80,3 +80,7 @@ async def send_notification_to_user(
                 await repo.delete(subscription)
             else:
                 logger.warning("Push send failed for endpoint %s: %s", subscription.endpoint, exc)
+        except Exception:  # noqa: BLE001 - a single unreachable endpoint (network
+            # error, timeout, etc.) must never break the caller's larger
+            # operation (posting an announcement, a cron job's whole run).
+            logger.exception("Unexpected error sending push to endpoint %s", subscription.endpoint)

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 import type { ResidentStatus, RoomWithResidents } from "../types";
 
@@ -13,30 +13,24 @@ function groupByFloor(rooms: RoomWithResidents[]) {
 }
 
 export default function PresenceBoard() {
-  const [rooms, setRooms] = useState<RoomWithResidents[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const {
+    data: rooms,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ["residents", "presence"],
+    queryFn: () => api.get<RoomWithResidents[]>("/residents/presence"),
+  });
 
-  async function load() {
-    try {
-      const data = await api.get<RoomWithResidents[]>("/residents/presence");
-      setRooms(data);
-    } catch {
-      setError("Could not load presence board");
-    }
-  }
+  const toggleStatus = useMutation({
+    mutationFn: ({ residentId, current }: { residentId: string; current: ResidentStatus }) =>
+      api.patch(`/residents/${residentId}/status`, { status: current === "home" ? "away" : "home" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["residents", "presence"] }),
+  });
 
-  useEffect(() => {
-    load();
-  }, []);
-
-  async function toggleStatus(residentId: string, current: ResidentStatus) {
-    const next: ResidentStatus = current === "home" ? "away" : "home";
-    await api.patch(`/residents/${residentId}/status`, { status: next });
-    load();
-  }
-
-  if (error) return <p className="text-red-600">{error}</p>;
-  if (!rooms) return <p className="text-slate-500">Loading presence board...</p>;
+  if (isError) return <p className="text-red-600">Could not load presence board</p>;
+  if (isLoading || !rooms) return <p className="text-slate-500">Loading presence board...</p>;
 
   return (
     <div className="space-y-8">
@@ -56,7 +50,7 @@ export default function PresenceBoard() {
                         {resident.first_name} {resident.last_name}
                       </span>
                       <button
-                        onClick={() => toggleStatus(resident.id, resident.status)}
+                        onClick={() => toggleStatus.mutate({ residentId: resident.id, current: resident.status })}
                         className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                           resident.status === "home"
                             ? "bg-green-100 text-green-700"

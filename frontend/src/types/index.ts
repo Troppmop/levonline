@@ -7,6 +7,7 @@ export interface User {
   role: UserRole;
   is_active: boolean;
   resident_id: string | null;
+  avatar_url: string | null;
 }
 
 export type ResidentStatus = "home" | "away";
@@ -36,6 +37,9 @@ export interface Resident {
   rent_amount_due: string;
   rent_amount_paid: string;
   contract_pdf_url: string | null;
+  contract_signed: boolean;
+  has_horaat_keva: boolean;
+  in_country: boolean;
   notes: string | null;
   is_active: boolean;
   is_archived: boolean;

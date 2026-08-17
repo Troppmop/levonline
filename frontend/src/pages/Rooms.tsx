@@ -1,38 +1,39 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, type FormEvent } from "react";
 import { api } from "../api/client";
 import type { Room } from "../types";
 
 export default function Rooms() {
-  const [rooms, setRooms] = useState<Room[] | null>(null);
+  const queryClient = useQueryClient();
+  const { data: rooms } = useQuery({
+    queryKey: ["rooms"],
+    queryFn: () => api.get<Room[]>("/rooms"),
+  });
+
   const [floor, setFloor] = useState("1");
   const [roomNumber, setRoomNumber] = useState("");
   const [capacity, setCapacity] = useState("1");
   const [error, setError] = useState<string | null>(null);
 
-  async function load() {
-    const data = await api.get<Room[]>("/rooms");
-    setRooms(data);
-  }
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  async function createRoom(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    if (!roomNumber.trim()) return;
-    try {
-      await api.post("/rooms", {
+  const createRoom = useMutation({
+    mutationFn: () =>
+      api.post("/rooms", {
         floor: Number(floor),
         room_number: roomNumber,
         capacity: Number(capacity) || 1,
-      });
+      }),
+    onSuccess: () => {
       setRoomNumber("");
-      load();
-    } catch {
-      setError("Could not create room — check the floor/room number.");
-    }
+      queryClient.invalidateQueries({ queryKey: ["rooms"] });
+    },
+    onError: () => setError("Could not create room — check the floor/room number."),
+  });
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!roomNumber.trim()) return;
+    createRoom.mutate();
   }
 
   return (
@@ -41,7 +42,7 @@ export default function Rooms() {
         Rooms drive the Presence Tracker layout — create one per physical room, grouped by floor.
       </p>
 
-      <form onSubmit={createRoom} className="mb-6 flex flex-wrap items-end gap-2 rounded-lg bg-white p-4 shadow-sm">
+      <form onSubmit={handleSubmit} className="mb-6 flex flex-wrap items-end gap-2 rounded-lg bg-white p-4 shadow-sm">
         <label className="text-sm text-slate-600">
           Floor
           <input

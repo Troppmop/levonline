@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Link, Navigate, NavLink, Route, Routes } from "react-router-dom";
+import Avatar from "./components/Avatar";
 import BottomNav, { type BottomNavItem } from "./components/BottomNav";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import ResidentLayout from "./layouts/ResidentLayout";
@@ -84,8 +85,13 @@ function Layout({ children }: { children: ReactNode }) {
             ))}
           </nav>
           <div className="flex items-center gap-3 text-sm text-slate-600">
-            <Link to="/profile" className="hidden hover:text-indigo-600 sm:inline">
-              {user?.full_name}
+            <Link
+              to="/profile"
+              title="My Profile"
+              className="flex items-center gap-2 rounded-full border border-slate-200 py-1 pl-1 pr-1 hover:border-indigo-300 hover:bg-indigo-50 sm:pr-3"
+            >
+              <Avatar name={user?.full_name ?? ""} url={user?.avatar_url} size="sm" />
+              <span className="hidden sm:inline">{user?.full_name}</span>
             </Link>
             <button onClick={() => logout()} className="text-indigo-600 hover:underline">
               Sign out

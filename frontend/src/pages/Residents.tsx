@@ -1,4 +1,5 @@
-import { Fragment, useEffect, useState, type FormEvent } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Fragment, useState, type FormEvent } from "react";
 import { api } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
 import type { Resident, Room } from "../types";
@@ -9,70 +10,67 @@ function rentBalance(resident: Resident): number {
 
 export default function Residents() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const canEdit = user?.role === "admin" || user?.role === "staff";
   const [tab, setTab] = useState<"active" | "former">("active");
-  const [residents, setResidents] = useState<Resident[] | null>(null);
-  const [rooms, setRooms] = useState<Room[]>([]);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [offboardingResident, setOffboardingResident] = useState<Resident | null>(null);
 
-  async function load() {
-    const [residentData, roomData] = await Promise.all([
-      api.get<Resident[]>(`/residents?archived=${tab === "former"}`),
-      api.get<Room[]>("/rooms"),
-    ]);
-    setResidents(residentData);
-    setRooms(roomData);
+  const { data: residents } = useQuery({
+    queryKey: ["residents", tab],
+    queryFn: () => api.get<Resident[]>(`/residents?archived=${tab === "former"}`),
+  });
+
+  const { data: rooms } = useQuery({
+    queryKey: ["rooms"],
+    queryFn: () => api.get<Room[]>("/rooms"),
+  });
+
+  function invalidate() {
+    queryClient.invalidateQueries({ queryKey: ["residents"] });
   }
 
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+  const createResident = useMutation({
+    mutationFn: () => api.post("/residents", { first_name: firstName, last_name: lastName }),
+    onSuccess: () => {
+      setFirstName("");
+      setLastName("");
+      invalidate();
+    },
+  });
 
-  async function createResident(e: FormEvent) {
+  const assignRoom = useMutation({
+    mutationFn: ({ residentId, roomId }: { residentId: string; roomId: string }) =>
+      api.patch(`/residents/${residentId}`, { room_id: roomId || null }),
+    onSuccess: invalidate,
+  });
+
+  const saveDetails = useMutation({
+    mutationFn: ({ residentId, changes }: { residentId: string; changes: Record<string, unknown> }) =>
+      api.patch(`/residents/${residentId}`, changes),
+    onSuccess: invalidate,
+  });
+
+  const offboard = useMutation({
+    mutationFn: (checklist: {
+      key_returned: boolean;
+      biometric_cleared: boolean;
+      balance_settled: boolean;
+      note: string;
+    }) => api.post(`/residents/${offboardingResident!.id}/offboard`, checklist),
+    onSuccess: () => {
+      setOffboardingResident(null);
+      setEditingId(null);
+      invalidate();
+    },
+  });
+
+  function handleCreateSubmit(e: FormEvent) {
     e.preventDefault();
     if (!firstName.trim() || !lastName.trim()) return;
-    await api.post("/residents", { first_name: firstName, last_name: lastName });
-    setFirstName("");
-    setLastName("");
-    load();
-  }
-
-  async function assignRoom(residentId: string, roomId: string) {
-    await api.patch(`/residents/${residentId}`, { room_id: roomId || null });
-    load();
-  }
-
-  async function setDeposit(residentId: string, amount: string, paid: boolean) {
-    await api.patch(`/residents/${residentId}`, {
-      security_deposit_amount: amount || "0",
-      security_deposit_paid: paid,
-    });
-    load();
-  }
-
-  async function setRent(residentId: string, due: string, paid: string) {
-    await api.patch(`/residents/${residentId}`, {
-      rent_amount_due: due || "0",
-      rent_amount_paid: paid || "0",
-    });
-    load();
-  }
-
-  async function confirmOffboard(checklist: {
-    key_returned: boolean;
-    biometric_cleared: boolean;
-    balance_settled: boolean;
-    note: string;
-  }) {
-    if (!offboardingResident) return;
-    await api.post(`/residents/${offboardingResident.id}/offboard`, checklist);
-    setOffboardingResident(null);
-    setEditingId(null);
-    load();
+    createResident.mutate();
   }
 
   return (
@@ -100,7 +98,7 @@ export default function Residents() {
 
       {canEdit && tab === "active" && (
         <form
-          onSubmit={createResident}
+          onSubmit={handleCreateSubmit}
           className="mb-6 flex flex-col gap-2 rounded-lg bg-white p-4 shadow-sm sm:flex-row"
         >
           <input
@@ -138,6 +136,11 @@ export default function Residents() {
               <tr className="border-t border-slate-100">
                 <td className="px-4 py-2 font-medium">
                   {r.first_name} {r.last_name}
+                  {!r.in_country && (
+                    <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] text-amber-700">
+                      Out of country
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-2">{r.room ? r.room.room_number : "Unassigned"}</td>
                 <td className="px-4 py-2 capitalize">{r.status}</td>
@@ -165,10 +168,10 @@ export default function Residents() {
                   <td colSpan={6} className="px-4 py-3">
                     <ResidentEditPanel
                       resident={r}
-                      rooms={rooms}
-                      onAssignRoom={(roomId) => assignRoom(r.id, roomId)}
-                      onSetDeposit={(amount, paid) => setDeposit(r.id, amount, paid)}
-                      onSetRent={(due, paid) => setRent(r.id, due, paid)}
+                      rooms={rooms ?? []}
+                      saving={saveDetails.isPending}
+                      onAssignRoom={(roomId) => assignRoom.mutate({ residentId: r.id, roomId })}
+                      onSave={(changes) => saveDetails.mutate({ residentId: r.id, changes })}
                       onOffboard={() => setOffboardingResident(r)}
                     />
                   </td>
@@ -187,8 +190,9 @@ export default function Residents() {
       {offboardingResident && (
         <OffboardModal
           resident={offboardingResident}
+          submitting={offboard.isPending}
           onCancel={() => setOffboardingResident(null)}
-          onConfirm={confirmOffboard}
+          onConfirm={(checklist) => offboard.mutate(checklist)}
         />
       )}
     </div>
@@ -198,25 +202,46 @@ export default function Residents() {
 function ResidentEditPanel({
   resident,
   rooms,
+  saving,
   onAssignRoom,
-  onSetDeposit,
-  onSetRent,
+  onSave,
   onOffboard,
 }: {
   resident: Resident;
   rooms: Room[];
+  saving: boolean;
   onAssignRoom: (roomId: string) => void;
-  onSetDeposit: (amount: string, paid: boolean) => void;
-  onSetRent: (due: string, paid: string) => void;
+  onSave: (changes: Record<string, unknown>) => void;
   onOffboard: () => void;
 }) {
   const [depositAmount, setDepositAmount] = useState(resident.security_deposit_amount);
   const [depositPaid, setDepositPaid] = useState(resident.security_deposit_paid);
   const [rentDue, setRentDue] = useState(resident.rent_amount_due);
   const [rentPaid, setRentPaid] = useState(resident.rent_amount_paid);
+  const [contractSigned, setContractSigned] = useState(resident.contract_signed);
+  const [hasHoraatKeva, setHasHoraatKeva] = useState(resident.has_horaat_keva);
+  const [inCountry, setInCountry] = useState(resident.in_country);
+  const [moveInDate, setMoveInDate] = useState(resident.move_in_date ?? "");
+  const [moveOutDate, setMoveOutDate] = useState(resident.move_out_date ?? "");
+  const [notes, setNotes] = useState(resident.notes ?? "");
+
+  function handleSave() {
+    onSave({
+      security_deposit_amount: depositAmount || "0",
+      security_deposit_paid: depositPaid,
+      rent_amount_due: rentDue || "0",
+      rent_amount_paid: rentPaid || "0",
+      contract_signed: contractSigned,
+      has_horaat_keva: hasHoraatKeva,
+      in_country: inCountry,
+      move_in_date: moveInDate || null,
+      move_out_date: moveOutDate || null,
+      notes: notes || null,
+    });
+  }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-4">
         <label className="text-xs text-slate-600">
           Room
@@ -235,6 +260,28 @@ function ResidentEditPanel({
         </label>
 
         <label className="text-xs text-slate-600">
+          Move-in date
+          <input
+            type="date"
+            value={moveInDate}
+            onChange={(e) => setMoveInDate(e.target.value)}
+            className="mt-1 block rounded border border-slate-300 px-2 py-1.5 text-sm"
+          />
+        </label>
+
+        <label className="text-xs text-slate-600">
+          Move-out date
+          <input
+            type="date"
+            value={moveOutDate}
+            onChange={(e) => setMoveOutDate(e.target.value)}
+            className="mt-1 block rounded border border-slate-300 px-2 py-1.5 text-sm"
+          />
+        </label>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-4">
+        <label className="text-xs text-slate-600">
           Deposit amount
           <input
             value={depositAmount}
@@ -242,21 +289,11 @@ function ResidentEditPanel({
             className="mt-1 block w-28 rounded border border-slate-300 px-2 py-1.5 text-sm"
           />
         </label>
-
         <label className="flex items-center gap-1 text-xs text-slate-600">
           <input type="checkbox" checked={depositPaid} onChange={(e) => setDepositPaid(e.target.checked)} />
-          Paid
+          Deposit paid
         </label>
 
-        <button
-          onClick={() => onSetDeposit(depositAmount, depositPaid)}
-          className="rounded bg-slate-200 px-3 py-1.5 text-xs hover:bg-slate-300"
-        >
-          Save Deposit
-        </button>
-      </div>
-
-      <div className="flex flex-wrap items-end gap-4">
         <label className="text-xs text-slate-600">
           Rent due
           <input
@@ -265,7 +302,6 @@ function ResidentEditPanel({
             className="mt-1 block w-28 rounded border border-slate-300 px-2 py-1.5 text-sm"
           />
         </label>
-
         <label className="text-xs text-slate-600">
           Rent paid
           <input
@@ -274,12 +310,48 @@ function ResidentEditPanel({
             className="mt-1 block w-28 rounded border border-slate-300 px-2 py-1.5 text-sm"
           />
         </label>
+      </div>
 
+      <div className="flex flex-wrap items-center gap-4">
+        <label className="flex items-center gap-1 text-xs text-slate-600">
+          <input
+            type="checkbox"
+            checked={contractSigned}
+            onChange={(e) => setContractSigned(e.target.checked)}
+          />
+          Contract signed
+        </label>
+        <label className="flex items-center gap-1 text-xs text-slate-600">
+          <input
+            type="checkbox"
+            checked={hasHoraatKeva}
+            onChange={(e) => setHasHoraatKeva(e.target.checked)}
+          />
+          Horaat Keva on file
+        </label>
+        <label className="flex items-center gap-1 text-xs text-slate-600">
+          <input type="checkbox" checked={inCountry} onChange={(e) => setInCountry(e.target.checked)} />
+          Currently in the country
+        </label>
+      </div>
+
+      <label className="block text-xs text-slate-600">
+        Comments (allergies, important notes, etc.)
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={2}
+          className="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+        />
+      </label>
+
+      <div className="flex items-center gap-2">
         <button
-          onClick={() => onSetRent(rentDue, rentPaid)}
-          className="rounded bg-slate-200 px-3 py-1.5 text-xs hover:bg-slate-300"
+          onClick={handleSave}
+          disabled={saving}
+          className="rounded bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
         >
-          Save Rent
+          {saving ? "Saving..." : "Save Changes"}
         </button>
 
         {!resident.is_archived && (
@@ -297,10 +369,12 @@ function ResidentEditPanel({
 
 function OffboardModal({
   resident,
+  submitting,
   onCancel,
   onConfirm,
 }: {
   resident: Resident;
+  submitting: boolean;
   onCancel: () => void;
   onConfirm: (checklist: {
     key_returned: boolean;
@@ -372,9 +446,10 @@ function OffboardModal({
                 note,
               })
             }
-            className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+            disabled={submitting}
+            className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
           >
-            Confirm Offboard
+            {submitting ? "Saving..." : "Confirm Offboard"}
           </button>
         </div>
       </div>

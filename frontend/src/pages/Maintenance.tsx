@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef, useState, type FormEvent } from "react";
 import { api } from "../api/client";
 import type { DamageReport, MaintenanceStatus } from "../types";
 
@@ -10,44 +11,74 @@ const STATUS_LABEL: Record<MaintenanceStatus, string> = {
   closed: "Closed",
 };
 
+export const REPORT_LOCATIONS = [
+  "Floor 1 Kitchen",
+  "Floor 2 Kitchen",
+  "Floor 3 Kitchen",
+  "Basement",
+  "Common Area",
+  "Stairwell / Hallway",
+  "Bathroom",
+  "Laundry Room",
+  "Kiddush Supply Room",
+  "Other",
+];
+
 export default function Maintenance() {
-  const [reports, setReports] = useState<DamageReport[] | null>(null);
+  const queryClient = useQueryClient();
+  const { data: reports } = useQuery({
+    queryKey: ["maintenance", "reports"],
+    queryFn: () => api.get<DamageReport[]>("/maintenance/reports"),
+  });
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [locationDetail, setLocationDetail] = useState("");
+  const [customLocation, setCustomLocation] = useState("");
 
-  async function load() {
-    const data = await api.get<DamageReport[]>("/maintenance/reports");
-    setReports(data);
+  function invalidate() {
+    queryClient.invalidateQueries({ queryKey: ["maintenance", "reports"] });
   }
 
-  useEffect(() => {
-    load();
-  }, []);
+  const createReport = useMutation({
+    mutationFn: () =>
+      api.post("/maintenance/reports", {
+        title,
+        description,
+        location_detail: locationDetail === "Other" ? customLocation : locationDetail,
+      }),
+    onSuccess: () => {
+      setTitle("");
+      setDescription("");
+      setLocationDetail("");
+      setCustomLocation("");
+      invalidate();
+    },
+  });
 
-  async function createReport(e: FormEvent) {
+  const advanceStatus = useMutation({
+    mutationFn: (report: DamageReport) => {
+      const idx = STATUS_FLOW.indexOf(report.status);
+      const next = STATUS_FLOW[Math.min(idx + 1, STATUS_FLOW.length - 1)];
+      return api.patch(`/maintenance/reports/${report.id}/status`, { status: next });
+    },
+    onSuccess: invalidate,
+  });
+
+  const uploadPhoto = useMutation({
+    mutationFn: ({ reportId, file }: { reportId: string; file: File }) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      return api.upload(`/maintenance/reports/${reportId}/photos`, formData);
+    },
+    onSuccess: invalidate,
+  });
+
+  function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!title.trim() || !locationDetail.trim()) return;
-    await api.post("/maintenance/reports", { title, description, location_detail: locationDetail });
-    setTitle("");
-    setDescription("");
-    setLocationDetail("");
-    load();
-  }
-
-  async function advanceStatus(report: DamageReport) {
-    const idx = STATUS_FLOW.indexOf(report.status);
-    const next = STATUS_FLOW[Math.min(idx + 1, STATUS_FLOW.length - 1)];
-    if (next === report.status) return;
-    await api.patch(`/maintenance/reports/${report.id}/status`, { status: next });
-    load();
-  }
-
-  async function uploadPhoto(reportId: string, file: File) {
-    const formData = new FormData();
-    formData.append("file", file);
-    await api.upload(`/maintenance/reports/${reportId}/photos`, formData);
-    load();
+    const effectiveLocation = locationDetail === "Other" ? customLocation : locationDetail;
+    if (!title.trim() || !effectiveLocation.trim()) return;
+    createReport.mutate();
   }
 
   return (
@@ -55,8 +86,8 @@ export default function Maintenance() {
       <h1 className="mb-4 text-2xl font-semibold text-slate-800">Maintenance &amp; Damage Reports</h1>
 
       <form
-        onSubmit={createReport}
-        className="mb-6 flex flex-col gap-2 rounded-lg bg-white p-4 shadow-sm sm:flex-row"
+        onSubmit={handleSubmit}
+        className="mb-6 flex flex-col gap-2 rounded-lg bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap"
       >
         <input
           value={title}
@@ -64,13 +95,28 @@ export default function Maintenance() {
           placeholder="Issue title"
           className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
         />
-        <input
+        <select
           required
           value={locationDetail}
           onChange={(e) => setLocationDetail(e.target.value)}
-          placeholder="Location (e.g. Floor 1 Kitchen, Room 204)"
           className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
-        />
+        >
+          <option value="">Select location...</option>
+          {REPORT_LOCATIONS.map((loc) => (
+            <option key={loc} value={loc}>
+              {loc}
+            </option>
+          ))}
+        </select>
+        {locationDetail === "Other" && (
+          <input
+            required
+            value={customLocation}
+            onChange={(e) => setCustomLocation(e.target.value)}
+            placeholder="Describe the location"
+            className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
+          />
+        )}
         <input
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -84,7 +130,12 @@ export default function Maintenance() {
 
       <div className="space-y-3">
         {reports?.map((report) => (
-          <ReportCard key={report.id} report={report} onAdvance={advanceStatus} onUploadPhoto={uploadPhoto} />
+          <ReportCard
+            key={report.id}
+            report={report}
+            onAdvance={() => advanceStatus.mutate(report)}
+            onUploadPhoto={(file) => uploadPhoto.mutate({ reportId: report.id, file })}
+          />
         ))}
       </div>
       {reports?.length === 0 && <p className="text-slate-500">No damage reports yet.</p>}
@@ -98,8 +149,8 @@ function ReportCard({
   onUploadPhoto,
 }: {
   report: DamageReport;
-  onAdvance: (report: DamageReport) => void;
-  onUploadPhoto: (reportId: string, file: File) => void;
+  onAdvance: () => void;
+  onUploadPhoto: (file: File) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -126,10 +177,7 @@ function ReportCard({
             {STATUS_LABEL[report.status]}
           </span>
           {report.status !== "closed" && (
-            <button
-              onClick={() => onAdvance(report)}
-              className="rounded bg-slate-200 px-3 py-1 text-xs hover:bg-slate-300"
-            >
+            <button onClick={onAdvance} className="rounded bg-slate-200 px-3 py-1 text-xs hover:bg-slate-300">
               Advance
             </button>
           )}
@@ -146,7 +194,7 @@ function ReportCard({
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) onUploadPhoto(report.id, file);
+              if (file) onUploadPhoto(file);
               e.target.value = "";
             }}
           />

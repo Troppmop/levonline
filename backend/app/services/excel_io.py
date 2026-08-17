@@ -169,7 +169,7 @@ def _cell_value(value: object) -> object:
         return str(value)
     if isinstance(value, Decimal):
         return float(value)
-    if isinstance(value, (datetime, date)):
+    if isinstance(value, datetime | date):
         return value.isoformat()
     if isinstance(value, list):
         return json.dumps(value)
@@ -246,7 +246,11 @@ def _parse_cell(column: str, field_info: FieldInfo, raw: object) -> object:
     conversion failure — callers turn that into a RowError."""
     target, optional = _unwrap_optional(field_info.annotation)
 
-    is_blank = raw is None or (isinstance(raw, float) and pd.isna(raw)) or (isinstance(raw, str) and raw.strip() == "")
+    is_blank = (
+        raw is None
+        or (isinstance(raw, float) and pd.isna(raw))
+        or (isinstance(raw, str) and raw.strip() == "")
+    )
     if is_blank:
         if optional or not field_info.is_required():
             return None

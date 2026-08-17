@@ -1,4 +1,5 @@
 /// <reference lib="webworker" />
+import { clientsClaim } from "workbox-core";
 import { precacheAndRoute } from "workbox-precaching";
 
 declare const self: ServiceWorkerGlobalScope;
@@ -10,6 +11,15 @@ declare const self: ServiceWorkerGlobalScope;
 // same "never cache API/uploads responses" behavior the old generateSW
 // runtimeCaching config had, just for free instead of configured.
 precacheAndRoute(self.__WB_MANIFEST);
+
+// generateSW auto-adds these when registerType is "autoUpdate"; a
+// hand-authored injectManifest worker like this one has to do it itself,
+// or a newly deployed SW sits "waiting" until every open tab is fully
+// closed (not just refreshed) before it ever takes over — deployed
+// changes would otherwise appear to not exist for anyone with the app
+// already open.
+self.skipWaiting();
+clientsClaim();
 
 self.addEventListener("push", (event: PushEvent) => {
   if (!event.data) return;

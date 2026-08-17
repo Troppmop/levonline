@@ -93,8 +93,16 @@ class ResidentService:
 
         items = [
             ("Room key returned" if checklist.key_returned else "Room key NOT returned"),
-            ("Biometric access cleared" if checklist.biometric_cleared else "Biometric access NOT cleared"),
-            ("Deposit/rent balance settled" if checklist.balance_settled else "Deposit/rent balance NOT settled"),
+            (
+                "Biometric access cleared"
+                if checklist.biometric_cleared
+                else "Biometric access NOT cleared"
+            ),
+            (
+                "Deposit/rent balance settled"
+                if checklist.balance_settled
+                else "Deposit/rent balance NOT settled"
+            ),
         ]
         description = "Resident offboarded. " + "; ".join(items) + "."
         if checklist.note:

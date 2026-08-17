@@ -54,7 +54,9 @@ async def test_residents_require_auth(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_offboard_archives_resident_and_logs_checklist(client: AsyncClient, auth_headers: dict[str, str]):
+async def test_offboard_archives_resident_and_logs_checklist(
+    client: AsyncClient, auth_headers: dict[str, str]
+):
     create_resp = await client.post(
         "/api/v1/residents", json={"first_name": "Moshe", "last_name": "Katz"}, headers=auth_headers
     )

@@ -14,6 +14,7 @@ export default function Maintenance() {
   const [reports, setReports] = useState<DamageReport[] | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [locationDetail, setLocationDetail] = useState("");
 
   async function load() {
     const data = await api.get<DamageReport[]>("/maintenance/reports");
@@ -26,10 +27,11 @@ export default function Maintenance() {
 
   async function createReport(e: FormEvent) {
     e.preventDefault();
-    if (!title.trim()) return;
-    await api.post("/maintenance/reports", { title, description });
+    if (!title.trim() || !locationDetail.trim()) return;
+    await api.post("/maintenance/reports", { title, description, location_detail: locationDetail });
     setTitle("");
     setDescription("");
+    setLocationDetail("");
     load();
   }
 
@@ -60,6 +62,13 @@ export default function Maintenance() {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Issue title"
+          className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
+        />
+        <input
+          required
+          value={locationDetail}
+          onChange={(e) => setLocationDetail(e.target.value)}
+          placeholder="Location (e.g. Floor 1 Kitchen, Room 204)"
           className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
         />
         <input
@@ -99,6 +108,9 @@ function ReportCard({
       <div className="flex items-center justify-between">
         <div>
           <p className="font-medium text-slate-800">{report.title}</p>
+          {report.location_detail && (
+            <p className="text-xs font-medium text-indigo-600">📍 {report.location_detail}</p>
+          )}
           <p className="text-sm text-slate-500">{report.description}</p>
         </div>
         <div className="flex items-center gap-3">

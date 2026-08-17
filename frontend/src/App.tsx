@@ -18,13 +18,11 @@ import ResidentHome from "./pages/resident/ResidentHome";
 import ResidentMeals from "./pages/resident/ResidentMeals";
 import ResidentReport from "./pages/resident/ResidentReport";
 import Residents from "./pages/Residents";
-import Rooms from "./pages/Rooms";
 
 const NAV_ITEMS = [
   { to: "/dashboard", label: "Dashboard" },
   { to: "/presence", label: "Presence" },
   { to: "/residents", label: "Residents" },
-  { to: "/rooms", label: "Rooms" },
   { to: "/inventory", label: "Inventory" },
   { to: "/maintenance", label: "Maintenance" },
   { to: "/meals", label: "Meals" },
@@ -37,7 +35,7 @@ const BOTTOM_NAV_BY_ROLE: Record<"admin" | "staff" | "av_bayit", BottomNavItem[]
     { to: "/presence", label: "Presence", icon: "🏠" },
     { to: "/maintenance", label: "Tickets", icon: "🛠️" },
     { to: "/registrations", label: "Requests", icon: "📝" },
-    { to: "/admin", label: "Staff", icon: "👤" },
+    { to: "/admin", label: "Admin", icon: "👤" },
   ],
   staff: [
     { to: "/dashboard", label: "Dashboard", icon: "📊" },
@@ -60,7 +58,7 @@ function Layout({ children }: { children: ReactNode }) {
     navItems.push({ to: "/registrations", label: "Registrations" });
   }
   if (user?.role === "admin") {
-    navItems.push({ to: "/admin", label: "Staff" });
+    navItems.push({ to: "/admin", label: "Admin" });
   }
   const bottomItems =
     user?.role === "admin" || user?.role === "staff" || user?.role === "av_bayit"
@@ -166,14 +164,6 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Residents />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/rooms"
-          element={
-            <ProtectedRoute>
-              <Rooms />
             </ProtectedRoute>
           }
         />

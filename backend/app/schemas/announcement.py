@@ -11,6 +11,8 @@ class AnnouncementBase(BaseModel):
     body: str
     category: AnnouncementCategory = AnnouncementCategory.GENERAL
     pinned: bool = False
+    event_location: str | None = None
+    event_time: str | None = None
     audience_av_bayit_id: uuid.UUID | None = None
     expires_at: datetime | None = None
 
@@ -24,6 +26,8 @@ class AnnouncementUpdate(BaseModel):
     body: str | None = None
     category: AnnouncementCategory | None = None
     pinned: bool | None = None
+    event_location: str | None = None
+    event_time: str | None = None
     expires_at: datetime | None = None
 
 

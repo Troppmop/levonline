@@ -51,8 +51,17 @@ class Resident(UUIDPrimaryKey, TimestampMixin, table=True):
     security_deposit_returned: bool = Field(default=False)
     security_deposit_returned_date: date | None = None
 
+    # Rent balance tracking (a lightweight running total, not a full ledger).
+    rent_amount_due: Decimal = Field(default=Decimal("0"), max_digits=10, decimal_places=2)
+    rent_amount_paid: Decimal = Field(default=Decimal("0"), max_digits=10, decimal_places=2)
+    contract_pdf_url: str | None = None
+
     notes: str | None = None
     is_active: bool = Field(default=True, index=True)
+    # Set by the offboarding flow; drives the Active/Former-Resident tabs.
+    # Kept alongside is_active (always toggled together) rather than
+    # replacing it, since is_active is already relied on elsewhere.
+    is_archived: bool = Field(default=False, index=True)
 
     room: Optional["Room"] = Relationship(back_populates="residents")
     activity_logs: list["ResidentActivityLog"] = Relationship(

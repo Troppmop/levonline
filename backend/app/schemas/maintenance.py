@@ -10,6 +10,7 @@ class DamageReportBase(BaseModel):
     title: str
     description: str
     category: ReportCategory = ReportCategory.DAMAGE
+    location_detail: str | None = None
     room_id: uuid.UUID | None = None
     resident_id: uuid.UUID | None = None
 

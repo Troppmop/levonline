@@ -22,6 +22,9 @@ class ResidentBase(BaseModel):
     security_deposit_paid_date: date | None = None
     security_deposit_returned: bool = False
     security_deposit_returned_date: date | None = None
+    rent_amount_due: Decimal = Decimal("0")
+    rent_amount_paid: Decimal = Decimal("0")
+    contract_pdf_url: str | None = None
     notes: str | None = None
 
 
@@ -44,6 +47,9 @@ class ResidentUpdate(BaseModel):
     security_deposit_paid_date: date | None = None
     security_deposit_returned: bool | None = None
     security_deposit_returned_date: date | None = None
+    rent_amount_due: Decimal | None = None
+    rent_amount_paid: Decimal | None = None
+    contract_pdf_url: str | None = None
     notes: str | None = None
     is_active: bool | None = None
 
@@ -52,10 +58,22 @@ class ResidentStatusUpdate(BaseModel):
     status: ResidentStatus
 
 
+class ResidentOffboardRequest(BaseModel):
+    """Checklist confirmations collected in the Offboard Resident modal;
+    folded into the activity log description rather than stored as
+    separate columns, since they're a one-time procedural record."""
+
+    key_returned: bool = False
+    biometric_cleared: bool = False
+    balance_settled: bool = False
+    note: str | None = None
+
+
 class ResidentRead(ResidentBase):
     id: uuid.UUID
     status: ResidentStatus
     is_active: bool
+    is_archived: bool
     created_at: datetime
     updated_at: datetime
     room: RoomRead | None = None

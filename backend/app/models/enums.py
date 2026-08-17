@@ -41,6 +41,7 @@ class InventoryLocation(str, enum.Enum):
     FLOOR_2_KITCHEN = "floor_2_kitchen"
     FLOOR_3_KITCHEN = "floor_3_kitchen"
     BASEMENT = "basement"
+    KIDDUSH_SUPPLY_ROOM = "kiddush_supply_room"
 
 
 class InventoryCategory(str, enum.Enum):

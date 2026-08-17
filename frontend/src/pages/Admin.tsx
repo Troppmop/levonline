@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { ApiError, api } from "../api/client";
+import Rooms from "./Rooms";
 import type { Resident, User, UserRole } from "../types";
 
 const ROLES: { value: UserRole; label: string }[] = [
@@ -11,6 +12,7 @@ const ROLES: { value: UserRole; label: string }[] = [
 ];
 
 export default function Admin() {
+  const [tab, setTab] = useState<"staff" | "rooms">("staff");
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
@@ -49,13 +51,37 @@ export default function Admin() {
   }
 
   return (
-    <div className="max-w-lg">
-      <h1 className="mb-4 text-2xl font-semibold text-slate-800">Staff Accounts</h1>
-      <p className="mb-4 text-sm text-slate-500">
-        Create login accounts for staff, Av/Eim Bayit families, residents, and other admins.
-      </p>
+    <div className={tab === "rooms" ? "max-w-3xl" : "max-w-lg"}>
+      <h1 className="mb-4 text-2xl font-semibold text-slate-800">Admin Settings</h1>
 
-      <form onSubmit={createUser} className="space-y-3 rounded-lg bg-white p-4 shadow-sm">
+      <div className="mb-4 flex gap-2 border-b border-slate-200">
+        <button
+          onClick={() => setTab("staff")}
+          className={`px-3 py-2 text-sm font-medium ${
+            tab === "staff" ? "border-b-2 border-indigo-600 text-indigo-600" : "text-slate-500"
+          }`}
+        >
+          Staff Accounts
+        </button>
+        <button
+          onClick={() => setTab("rooms")}
+          className={`px-3 py-2 text-sm font-medium ${
+            tab === "rooms" ? "border-b-2 border-indigo-600 text-indigo-600" : "text-slate-500"
+          }`}
+        >
+          Rooms
+        </button>
+      </div>
+
+      {tab === "rooms" && <Rooms />}
+
+      {tab === "staff" && (
+        <>
+          <p className="mb-4 text-sm text-slate-500">
+            Create login accounts for staff, Av/Eim Bayit families, residents, and other admins.
+          </p>
+
+          <form onSubmit={createUser} className="space-y-3 rounded-lg bg-white p-4 shadow-sm">
         {error && <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
         {created && (
           <p className="rounded bg-green-50 px-3 py-2 text-sm text-green-700">
@@ -127,7 +153,9 @@ export default function Admin() {
         <button type="submit" className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white">
           Create Account
         </button>
-      </form>
+          </form>
+        </>
+      )}
     </div>
   );
 }

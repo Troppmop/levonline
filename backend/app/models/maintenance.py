@@ -23,6 +23,9 @@ class DamageReport(UUIDPrimaryKey, TimestampMixin, table=True):
     description: str
     category: ReportCategory = Field(default=ReportCategory.DAMAGE, index=True)
     status: MaintenanceStatus = Field(default=MaintenanceStatus.NEW, index=True)
+    # Free-text location, e.g. "Floor 1 Kitchen", "Basement", "Room 204",
+    # "Common Area" — distinct from room_id, which only covers resident rooms.
+    location_detail: str | None = None
 
     room_id: uuid.UUID | None = Field(default=None, foreign_key="rooms.id", index=True)
     resident_id: uuid.UUID | None = Field(default=None, foreign_key="residents.id", index=True)

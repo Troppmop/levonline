@@ -159,8 +159,24 @@ export default function Meals() {
     load();
   }
 
+  const canInvite = user?.role === "av_bayit" || user?.role === "staff" || user?.role === "admin";
+
   return (
     <div className="space-y-6">
+      <div className="rounded-lg bg-indigo-50 p-4 text-sm text-indigo-800">
+        <p>
+          <span className="font-semibold">Log Hosted Meal</span> records a meal that already happened, for the
+          hosting history and summary below.
+          {canInvite && (
+            <>
+              {" "}
+              <span className="font-semibold">Invite Resident</span> sends a forward-looking invitation to an
+              assigned soldier, who can accept or decline before the meal happens.
+            </>
+          )}
+        </p>
+      </div>
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <h1 className="mb-4 text-2xl font-semibold text-slate-800">Meal Hosting Log</h1>
@@ -217,9 +233,7 @@ export default function Meals() {
         </div>
       </div>
 
-      {(user?.role === "av_bayit" || user?.role === "staff" || user?.role === "admin") && (
-        <InviteResidentPanel />
-      )}
+      {canInvite && <InviteResidentPanel />}
     </div>
   );
 }

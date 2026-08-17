@@ -7,6 +7,7 @@ from app.api.pagination import PaginationDep
 from app.schemas.resident import (
     ResidentActivityLogRead,
     ResidentCreate,
+    ResidentOffboardRequest,
     ResidentRead,
     ResidentStatusUpdate,
     ResidentUpdate,
@@ -27,13 +28,21 @@ async def presence_by_room_layout(session: SessionDep, _: NotResident):
 
 @router.get("", response_model=list[ResidentRead])
 async def list_residents(
-    session: SessionDep, current_user: NotResident, pagination: PaginationDep, assigned_to_me: bool = False
+    session: SessionDep,
+    current_user: NotResident,
+    pagination: PaginationDep,
+    assigned_to_me: bool = False,
+    archived: bool = False,
 ):
     """assigned_to_me: for Av/Eim Bayit accounts, narrows the roster to
-    just the residents assigned to them (used by the hosting portal)."""
+    just the residents assigned to them (used by the hosting portal).
+    archived: switches between the Active and Former-Resident tabs."""
     assigned_av_bayit_id = current_user.id if assigned_to_me else None
-    return await ResidentService(session).list_active(
-        offset=pagination.offset, limit=pagination.limit, assigned_av_bayit_id=assigned_av_bayit_id
+    return await ResidentService(session).list_residents(
+        offset=pagination.offset,
+        limit=pagination.limit,
+        assigned_av_bayit_id=assigned_av_bayit_id,
+        archived=archived,
     )
 
 
@@ -83,9 +92,14 @@ async def update_resident_status(
     return await ResidentService(session).set_status(resident_id, payload.status, actor_id=current_user.id)
 
 
-@router.post("/{resident_id}/deactivate", response_model=ResidentRead)
-async def deactivate_resident(session: SessionDep, current_user: StaffOrAdmin, resident_id: uuid.UUID):
-    return await ResidentService(session).deactivate(resident_id, actor_id=current_user.id)
+@router.post("/{resident_id}/offboard", response_model=ResidentRead)
+async def offboard_resident(
+    session: SessionDep,
+    current_user: StaffOrAdmin,
+    resident_id: uuid.UUID,
+    payload: ResidentOffboardRequest = ResidentOffboardRequest(),
+):
+    return await ResidentService(session).offboard(resident_id, payload, actor_id=current_user.id)
 
 
 @router.get("/{resident_id}/activity", response_model=list[ResidentActivityLogRead])

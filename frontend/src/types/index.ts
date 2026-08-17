@@ -33,8 +33,12 @@ export interface Resident {
   security_deposit_amount: string;
   security_deposit_paid: boolean;
   security_deposit_returned: boolean;
+  rent_amount_due: string;
+  rent_amount_paid: string;
+  contract_pdf_url: string | null;
   notes: string | null;
   is_active: boolean;
+  is_archived: boolean;
   room: Room | null;
 }
 
@@ -42,7 +46,12 @@ export interface RoomWithResidents extends Room {
   residents: Resident[];
 }
 
-export type InventoryLocation = "floor_1_kitchen" | "floor_2_kitchen" | "floor_3_kitchen" | "basement";
+export type InventoryLocation =
+  | "floor_1_kitchen"
+  | "floor_2_kitchen"
+  | "floor_3_kitchen"
+  | "basement"
+  | "kiddush_supply_room";
 export type InventoryCategory =
   | "perishable"
   | "non_perishable"
@@ -72,6 +81,7 @@ export interface DamageReport {
   description: string;
   category: ReportCategory;
   status: MaintenanceStatus;
+  location_detail: string | null;
   room_id: string | null;
   resident_id: string | null;
   photo_urls: string[];
@@ -120,6 +130,8 @@ export interface Announcement {
   body: string;
   category: AnnouncementCategory;
   pinned: boolean;
+  event_location: string | null;
+  event_time: string | null;
   audience_av_bayit_id: string | null;
   created_by_id: string | null;
   expires_at: string | null;

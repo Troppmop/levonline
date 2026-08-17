@@ -72,6 +72,20 @@ export default function ResidentHome() {
               </div>
               <p className="font-medium text-slate-800">{a.title}</p>
               <p className="text-sm text-slate-600">{a.body}</p>
+              {(a.event_location || a.event_time) && (
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {a.event_location && (
+                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700">
+                      📍 {a.event_location}
+                    </span>
+                  )}
+                  {a.event_time && (
+                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700">
+                      🕒 {a.event_time}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           ))}
           {announcements?.length === 0 && (

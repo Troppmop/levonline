@@ -7,6 +7,7 @@ const LOCATIONS: { value: InventoryLocation; label: string }[] = [
   { value: "floor_2_kitchen", label: "Floor 2 Kitchen" },
   { value: "floor_3_kitchen", label: "Floor 3 Kitchen" },
   { value: "basement", label: "Basement" },
+  { value: "kiddush_supply_room", label: "Kiddush Supply Room" },
 ];
 
 const CATEGORIES: { value: InventoryCategory; label: string }[] = [

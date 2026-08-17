@@ -15,6 +15,7 @@ export default function ResidentReport() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<ReportCategory>("damage");
+  const [locationDetail, setLocationDetail] = useState("");
   const [roomId, setRoomId] = useState("");
 
   const { data: rooms } = useQuery({
@@ -33,11 +34,13 @@ export default function ResidentReport() {
         title,
         description,
         category,
+        location_detail: locationDetail,
         room_id: roomId || null,
       }),
     onSuccess: () => {
       setTitle("");
       setDescription("");
+      setLocationDetail("");
       queryClient.invalidateQueries({ queryKey: ["maintenance", "reports", "mine"] });
     },
   });
@@ -53,7 +56,7 @@ export default function ResidentReport() {
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim() || !locationDetail.trim()) return;
     createReport.mutate();
   }
 
@@ -87,6 +90,13 @@ export default function ResidentReport() {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="What's the issue?"
+          className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+        />
+        <input
+          required
+          value={locationDetail}
+          onChange={(e) => setLocationDetail(e.target.value)}
+          placeholder="Location (e.g. Floor 1 Kitchen, Room 204)"
           className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
         />
         <textarea
@@ -153,6 +163,9 @@ function ReportCard({ report, onUploadPhoto }: { report: DamageReport; onUploadP
         </span>
       </div>
       <p className="text-xs uppercase tracking-wide text-slate-400">{report.category}</p>
+      {report.location_detail && (
+        <p className="text-xs font-medium text-indigo-600">📍 {report.location_detail}</p>
+      )}
       {report.description && <p className="text-sm text-slate-600">{report.description}</p>}
 
       <div className="mt-2 flex flex-wrap items-center gap-2">

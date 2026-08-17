@@ -6,11 +6,13 @@ import type { DamageReport, InventoryItem, Resident } from "../types";
 function StatTile({
   label,
   value,
+  subtitle,
   to,
   tone = "default",
 }: {
   label: string;
   value: string;
+  subtitle: string;
   to: string;
   tone?: "default" | "warning";
 }) {
@@ -23,6 +25,7 @@ function StatTile({
       <p className={`mt-1 text-2xl font-semibold ${tone === "warning" ? "text-red-700" : "text-slate-800"}`}>
         {value}
       </p>
+      <p className="mt-1 text-xs text-slate-400">{subtitle}</p>
     </Link>
   );
 }
@@ -52,20 +55,32 @@ export default function Dashboard() {
       <h1 className="text-2xl font-semibold text-slate-800">Live Dashboard</h1>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatTile label="Home / Total" value={`${homeCount}/${totalCount}`} to="/presence" />
         <StatTile
-          label="Low Stock Items"
+          label="Current Occupancy (Home Now)"
+          value={`${homeCount} / ${totalCount} Residents Present`}
+          subtitle="View the presence board"
+          to="/presence"
+        />
+        <StatTile
+          label="Low Stock Inventory Items"
           value={String(lowStock?.length ?? 0)}
+          subtitle="View food & supply inventory"
           to="/inventory"
           tone={(lowStock?.length ?? 0) > 0 ? "warning" : "default"}
         />
         <StatTile
-          label="Open Tickets"
+          label="Open Maintenance Tickets"
           value={String(openTickets)}
+          subtitle="View maintenance & cleaning tickets"
           to="/maintenance"
           tone={openTickets > 0 ? "warning" : "default"}
         />
-        <StatTile label="Residents" value={String(totalCount)} to="/residents" />
+        <StatTile
+          label="Total Residents"
+          value={String(totalCount)}
+          subtitle="Manage resident profiles"
+          to="/residents"
+        />
       </div>
     </div>
   );

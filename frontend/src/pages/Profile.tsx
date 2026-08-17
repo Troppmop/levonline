@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { ApiError, api, logout as apiLogout } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
 
@@ -60,6 +61,15 @@ export default function Profile() {
   return (
     <div className="max-w-lg space-y-6">
       <h1 className="text-2xl font-semibold text-slate-800">My Profile</h1>
+
+      {user?.role === "admin" && (
+        <Link
+          to="/admin"
+          className="block rounded-lg bg-indigo-50 p-4 text-sm font-medium text-indigo-700 shadow-sm hover:bg-indigo-100"
+        >
+          Admin Settings — manage staff accounts and rooms →
+        </Link>
+      )}
 
       <form onSubmit={saveProfile} className="space-y-3 rounded-lg bg-white p-4 shadow-sm">
         <h2 className="font-medium text-slate-700">Account details</h2>

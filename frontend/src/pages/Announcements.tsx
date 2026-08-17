@@ -17,6 +17,8 @@ export default function Announcements() {
   const [body, setBody] = useState("");
   const [category, setCategory] = useState<AnnouncementCategory>("general");
   const [pinned, setPinned] = useState(false);
+  const [eventLocation, setEventLocation] = useState("");
+  const [eventTime, setEventTime] = useState("");
 
   const { data: announcements } = useQuery({
     queryKey: ["announcements"],
@@ -24,11 +26,21 @@ export default function Announcements() {
   });
 
   const create = useMutation({
-    mutationFn: () => api.post<Announcement>("/announcements", { title, body, category, pinned }),
+    mutationFn: () =>
+      api.post<Announcement>("/announcements", {
+        title,
+        body,
+        category,
+        pinned,
+        event_location: eventLocation || null,
+        event_time: eventTime || null,
+      }),
     onSuccess: () => {
       setTitle("");
       setBody("");
       setPinned(false);
+      setEventLocation("");
+      setEventTime("");
       queryClient.invalidateQueries({ queryKey: ["announcements"] });
     },
   });
@@ -69,6 +81,20 @@ export default function Announcements() {
           rows={2}
           className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
         />
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            value={eventLocation}
+            onChange={(e) => setEventLocation(e.target.value)}
+            placeholder="Event location (optional)"
+            className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
+          />
+          <input
+            value={eventTime}
+            onChange={(e) => setEventTime(e.target.value)}
+            placeholder="Event time (optional, e.g. Tonight @ 20:00)"
+            className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
+          />
+        </div>
         <div className="flex flex-wrap items-center gap-3">
           {!isAvBayit && (
             <select
@@ -113,6 +139,20 @@ export default function Announcements() {
               </div>
               <p className="font-medium text-slate-800">{a.title}</p>
               <p className="text-sm text-slate-600">{a.body}</p>
+              {(a.event_location || a.event_time) && (
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {a.event_location && (
+                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700">
+                      📍 {a.event_location}
+                    </span>
+                  )}
+                  {a.event_time && (
+                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700">
+                      🕒 {a.event_time}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             {(user?.role === "admin" || user?.role === "staff") && (
               <button

@@ -18,11 +18,14 @@ class ResidentRepository(BaseRepository[Resident]):
         offset: int = 0,
         limit: int = 200,
         is_active: bool | None = True,
+        is_archived: bool | None = None,
         assigned_av_bayit_id=None,
     ):
         stmt = select(Resident).options(selectinload(Resident.room))
         if is_active is not None:
             stmt = stmt.where(Resident.is_active == is_active)
+        if is_archived is not None:
+            stmt = stmt.where(Resident.is_archived == is_archived)
         if assigned_av_bayit_id is not None:
             stmt = stmt.where(Resident.assigned_av_bayit_id == assigned_av_bayit_id)
         stmt = stmt.order_by(Resident.last_name, Resident.first_name).offset(offset).limit(limit)

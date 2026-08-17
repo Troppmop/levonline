@@ -37,7 +37,6 @@ export default function Rooms() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-semibold text-slate-800">Rooms</h1>
       <p className="mb-4 text-sm text-slate-500">
         Rooms drive the Presence Tracker layout — create one per physical room, grouped by floor.
       </p>

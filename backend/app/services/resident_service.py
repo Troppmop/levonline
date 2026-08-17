@@ -7,7 +7,7 @@ from app.models.enums import ResidentStatus
 from app.models.resident import Resident, ResidentActivityLog
 from app.repositories.resident_repository import ResidentActivityLogRepository, ResidentRepository
 from app.repositories.room_repository import RoomRepository
-from app.schemas.resident import ResidentCreate, ResidentUpdate
+from app.schemas.resident import ResidentCreate, ResidentOffboardRequest, ResidentUpdate
 
 
 class ResidentService:
@@ -23,9 +23,15 @@ class ResidentService:
             raise NotFoundError("Resident not found")
         return resident
 
-    async def list_active(self, offset: int = 0, limit: int = 100, assigned_av_bayit_id=None):
+    async def list_residents(
+        self, offset: int = 0, limit: int = 100, assigned_av_bayit_id=None, archived: bool = False
+    ):
         return await self.residents.list_with_room(
-            offset=offset, limit=limit, assigned_av_bayit_id=assigned_av_bayit_id
+            offset=offset,
+            limit=limit,
+            is_active=None,
+            is_archived=archived,
+            assigned_av_bayit_id=assigned_av_bayit_id,
         )
 
     async def list_by_room_layout(self):
@@ -74,12 +80,26 @@ class ResidentService:
         await self._log_activity(resident_id, "status_change", f"Status changed to {status.value}", actor_id)
         return await self.get(resident_id)
 
-    async def deactivate(self, resident_id: uuid.UUID, actor_id: uuid.UUID | None = None) -> Resident:
+    async def offboard(
+        self,
+        resident_id: uuid.UUID,
+        checklist: ResidentOffboardRequest,
+        actor_id: uuid.UUID | None = None,
+    ) -> Resident:
         resident = await self.residents.get(resident_id)
         if not resident:
             raise NotFoundError("Resident not found")
-        await self.residents.update(resident, {"is_active": False})
-        await self._log_activity(resident_id, "deactivated", "Resident marked inactive / moved out", actor_id)
+        await self.residents.update(resident, {"is_active": False, "is_archived": True})
+
+        items = [
+            ("Room key returned" if checklist.key_returned else "Room key NOT returned"),
+            ("Biometric access cleared" if checklist.biometric_cleared else "Biometric access NOT cleared"),
+            ("Deposit/rent balance settled" if checklist.balance_settled else "Deposit/rent balance NOT settled"),
+        ]
+        description = "Resident offboarded. " + "; ".join(items) + "."
+        if checklist.note:
+            description += f" Note: {checklist.note}"
+        await self._log_activity(resident_id, "offboarded", description, actor_id)
         return await self.get(resident_id)
 
     async def list_activity(self, resident_id: uuid.UUID):
